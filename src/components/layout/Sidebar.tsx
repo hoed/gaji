@@ -52,7 +52,7 @@ const Sidebar = () => {
   return (
     <div className="w-64 flex-shrink-0 border-r bg-blue-600 py-4">
       <div className="px-6">
-        <h1 className="text-xl font-bold text-white">Gaji Kita Selaras</h1>
+        <h1 className="text-xl font-bold text-white">Gajiku</h1>
         <p className="text-sm text-blue-100">
           Sistem Penggajian Terpadu
         </p>
