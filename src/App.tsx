@@ -11,6 +11,7 @@ import Payroll from "./pages/Payroll";
 import Attendance from "./pages/Attendance";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
+import Calendar from "./pages/Calendar";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/penggajian" element={<Payroll />} />
             <Route path="/kehadiran" element={<Attendance />} />
             <Route path="/laporan" element={<Reports />} />
+            <Route path="/kalender" element={<Calendar />} />
             <Route path="/pengaturan" element={<Settings />} />
           </Route>
           <Route path="*" element={<NotFound />} />

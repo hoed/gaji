@@ -1,0 +1,16 @@
+
+NIK,Nama,Tanggal,Jam Masuk,Jam Keluar,Status,Catatan
+1001,Budi Santoso,2025-04-01,08:00:00,17:00:00,present,
+1002,Siti Nurbaya,2025-04-01,08:05:00,17:15:00,present,
+1003,Ahmad Dahlan,2025-04-01,08:15:00,17:30:00,present,
+,,,,,, 
+,,,,,, 
+,,,,,, 
+# Petunjuk pengisian:
+# NIK: Nomor Induk Karyawan (wajib diisi)
+# Nama: Nama lengkap karyawan (wajib diisi)
+# Tanggal: Format YYYY-MM-DD (wajib diisi)
+# Jam Masuk: Format HH:MM:SS (opsional)
+# Jam Keluar: Format HH:MM:SS (opsional)
+# Status: present, absent, sick, leave (wajib diisi)
+# Catatan: Keterangan tambahan (opsional)

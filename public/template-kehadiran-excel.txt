@@ -1,0 +1,50 @@
+
+Template Excel untuk Import Data Kehadiran
+
+Sheet 1: Data Kehadiran
+---------------------------------------------------------------------------------
+| NIK  | Nama         | Tanggal     | Jam Masuk | Jam Keluar | Status  | Catatan |
+|------|--------------|-------------|-----------|------------|---------|---------|
+| 1001 | Budi Santoso | 2025-04-01  | 08:00:00  | 17:00:00   | present |         |
+| 1002 | Siti Nurbaya | 2025-04-01  | 08:05:00  | 17:15:00   | present |         |
+| 1003 | Ahmad Dahlan | 2025-04-01  | 08:15:00  | 17:30:00   | present |         |
+|      |              |             |           |            |         |         |
+|      |              |             |           |            |         |         |
+
+Sheet 2: Petunjuk
+---------------------------------------------------------------------------------
+PETUNJUK PENGISIAN TEMPLATE KEHADIRAN
+
+1. Format Pengisian:
+   - NIK: Nomor Induk Karyawan (wajib diisi)
+   - Nama: Nama lengkap karyawan (wajib diisi)
+   - Tanggal: Format YYYY-MM-DD (wajib diisi), contoh: 2025-04-01
+   - Jam Masuk: Format HH:MM:SS (opsional), contoh: 08:00:00
+   - Jam Keluar: Format HH:MM:SS (opsional), contoh: 17:00:00
+   - Status: (wajib diisi) pilihan nilai:
+     * present: Hadir
+     * absent: Tidak hadir tanpa keterangan
+     * sick: Sakit
+     * leave: Cuti/Izin
+   - Catatan: Keterangan tambahan (opsional)
+
+2. Aturan Validasi:
+   - NIK harus terdaftar dalam sistem
+   - Format tanggal harus YYYY-MM-DD
+   - Format waktu harus HH:MM:SS
+   - Status harus sesuai dengan pilihan yang tersedia
+
+3. Cara Import:
+   - Simpan file setelah diisi
+   - Upload melalui menu Kehadiran > Import Data
+   - Sistem akan melakukan validasi dan menampilkan preview sebelum diproses
+   - Data dengan NIK dan tanggal yang sama akan melakukan update data yang sudah ada
+
+4. Kode Error Umum:
+   - E001: NIK tidak ditemukan
+   - E002: Format tanggal tidak valid
+   - E003: Format jam tidak valid
+   - E004: Status tidak valid
+   - E005: Duplikasi data (NIK dan tanggal yang sama)
+
+Untuk bantuan lebih lanjut, hubungi tim IT di support@gajikitaselaras.id

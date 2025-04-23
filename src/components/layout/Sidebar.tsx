@@ -1,96 +1,82 @@
-
-import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
-import { cn } from "@/lib/utils";
 import {
-  Users,
-  Calculator,
-  Calendar,
+  LayoutDashboard,
   FileText,
-  Home,
+  User,
+  CalendarClock,
+  Coins,
   Settings,
-  ArrowLeftFromLine,
-  ArrowRightFromLine
+  CalendarDays,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { NavLink } from "react-router-dom";
 
-type SidebarItemProps = {
-  icon: React.ElementType;
-  text: string;
-  to: string;
-  isCollapsed: boolean;
-  isActive: boolean;
-};
-
-const SidebarItem = ({ icon: Icon, text, to, isCollapsed, isActive }: SidebarItemProps) => {
-  return (
-    <Link
-      to={to}
-      className={cn(
-        "flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
-        isActive 
-          ? "bg-sidebar-accent text-sidebar-accent-foreground" 
-          : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
-      )}
-    >
-      <Icon size={20} />
-      {!isCollapsed && <span className="text-sm font-medium">{text}</span>}
-    </Link>
-  );
-};
-
-export default function Sidebar() {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const location = useLocation();
-  
+const Sidebar = () => {
   const menuItems = [
-    { icon: Home, text: "Beranda", to: "/" },
-    { icon: Users, text: "Karyawan", to: "/karyawan" },
-    { icon: Calculator, text: "Penggajian", to: "/penggajian" },
-    { icon: FileText, text: "Laporan", to: "/laporan" },
-    { icon: Calendar, text: "Kehadiran", to: "/kehadiran" },
-    { icon: Settings, text: "Pengaturan", to: "/pengaturan" },
+    {
+      title: "Dashboard",
+      url: "/",
+      icon: LayoutDashboard,
+    },
+    {
+      title: "Karyawan",
+      url: "/karyawan",
+      icon: User,
+    },
+    {
+      title: "Penggajian",
+      url: "/penggajian",
+      icon: Coins,
+    },
+    {
+      title: "Kehadiran",
+      url: "/kehadiran",
+      icon: CalendarClock,
+    },
+    {
+      title: "Kalender",
+      url: "/kalender",
+      icon: CalendarDays,
+    },
+    {
+      title: "Laporan",
+      url: "/laporan",
+      icon: FileText,
+    },
+    {
+      title: "Pengaturan",
+      url: "/pengaturan",
+      icon: Settings,
+    },
   ];
 
   return (
-    <aside
-      className={cn(
-        "h-screen bg-sidebar sticky top-0 flex flex-col border-r border-sidebar-border transition-all duration-300",
-        isCollapsed ? "w-16" : "w-64"
-      )}
-    >
-      <div className="flex items-center h-16 px-3 border-b border-sidebar-border">
-        {!isCollapsed ? (
-          <h1 className="text-lg font-bold text-sidebar-foreground">Gaji Kita Selaras</h1>
-        ) : (
-          <h1 className="text-lg font-bold text-sidebar-foreground mx-auto">GKS</h1>
-        )}
+    <div className="w-64 flex-shrink-0 border-r bg-gray-50 py-4">
+      <div className="px-6">
+        <h1 className="text-xl font-bold">Gaji Kita Selaras</h1>
+        <p className="text-sm text-muted-foreground">
+          Sistem Penggajian Terpadu
+        </p>
       </div>
-      
-      <nav className="flex-1 py-4 px-2 space-y-1">
+      <ul className="mt-6 space-y-1">
         {menuItems.map((item) => (
-          <SidebarItem
-            key={item.to}
-            icon={item.icon}
-            text={item.text}
-            to={item.to}
-            isCollapsed={isCollapsed}
-            isActive={location.pathname === item.to}
-          />
+          <li key={item.url}>
+            <NavLink
+              to={item.url}
+              className={({ isActive }) =>
+                `flex items-center space-x-3 px-6 py-2 text-sm font-medium transition-colors hover:bg-gray-100 hover:text-gray-900 ${
+                  isActive
+                    ? "bg-gray-100 text-gray-900"
+                    : "text-gray-500"
+                }`
+              }
+            >
+              <item.icon className="h-4 w-4" />
+              <span>{item.title}</span>
+            </NavLink>
+          </li>
         ))}
-      </nav>
-      
-      <div className="p-3 border-t border-sidebar-border">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-center text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
-          onClick={() => setIsCollapsed(!isCollapsed)}
-        >
-          {isCollapsed ? <ArrowRightFromLine size={18} /> : <ArrowLeftFromLine size={18} />}
-          {!isCollapsed && <span className="ml-2">Collapse</span>}
-        </Button>
-      </div>
-    </aside>
+      </ul>
+    </div>
   );
-}
+};
+
+export default Sidebar;
