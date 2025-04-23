@@ -1,17 +1,17 @@
-
 import React, { useState } from 'react';
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CalendarDays, Download, FileText, Loader2, CalendarCheck } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
+
+type AttendanceSummary = Database['public']['Views']['attendance_summary']['Row'];
+type PayrollSummary = Database['public']['Views']['payroll_summary']['Row'];
 
 const CalendarPage = () => {
   const [date, setDate] = useState<Date | undefined>(new Date());
@@ -19,12 +19,12 @@ const CalendarPage = () => {
   const [isConnecting, setIsConnecting] = useState(false);
   const { toast } = useToast();
   
+  const [attendanceData, setAttendanceData] = useState<AttendanceSummary[]>([]);
+  const [salaryData, setSalaryData] = useState<PayrollSummary[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
   // Format the selected date as YYYY-MM for database queries
   const formattedMonth = date ? format(date, "yyyy-MM") : format(new Date(), "yyyy-MM");
-
-  const [attendanceData, setAttendanceData] = useState<any[]>([]);
-  const [salaryData, setSalaryData] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
 
   // Load data for the selected month
   const loadMonthData = async () => {
@@ -36,21 +36,19 @@ const CalendarPage = () => {
       const startDate = format(new Date(date.getFullYear(), date.getMonth(), 1), "yyyy-MM-dd");
       const endDate = format(new Date(date.getFullYear(), date.getMonth() + 1, 0), "yyyy-MM-dd");
       
-      // Using any for now since the types for these tables haven't been generated
       const { data: attendanceData, error: attendanceError } = await supabase
         .from('attendance_summary')
-        .select('*')
-        .eq('month', startDate) as { data: any, error: any };
+        .select()
+        .eq('month', startDate);
       
       if (attendanceError) throw attendanceError;
       setAttendanceData(attendanceData || []);
       
-      // Fetch payroll data
       const { data: payrollData, error: payrollError } = await supabase
         .from('payroll_summary')
-        .select('*')
+        .select()
         .gte('period_start', startDate)
-        .lte('period_end', endDate) as { data: any, error: any };
+        .lte('period_end', endDate);
       
       if (payrollError) throw payrollError;
       setSalaryData(payrollData || []);
@@ -279,14 +277,14 @@ const CalendarPage = () => {
                             <TableCell className="font-medium">{item.full_name}</TableCell>
                             <TableCell>{item.department}</TableCell>
                             <TableCell>{item.position}</TableCell>
-                            <TableCell>Rp {item.basic_salary.toLocaleString('id-ID')}</TableCell>
+                            <TableCell>Rp {item.basic_salary?.toLocaleString('id-ID')}</TableCell>
                             <TableCell>Rp {(
-                              item.pph21 + 
-                              item.bpjs_kesehatan_total + 
-                              item.bpjs_ketenagakerjaan_total + 
-                              item.deductions
+                              (item.pph21 || 0) + 
+                              (item.bpjs_kesehatan_total || 0) + 
+                              (item.bpjs_ketenagakerjaan_total || 0) + 
+                              (item.deductions || 0)
                             ).toLocaleString('id-ID')}</TableCell>
-                            <TableCell>Rp {item.net_salary.toLocaleString('id-ID')}</TableCell>
+                            <TableCell>Rp {item.net_salary?.toLocaleString('id-ID')}</TableCell>
                             <TableCell>
                               <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                                 item.payment_status === 'paid' 
