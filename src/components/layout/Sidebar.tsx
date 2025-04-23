@@ -1,3 +1,4 @@
+
 import {
   LayoutDashboard,
   FileText,
@@ -49,10 +50,10 @@ const Sidebar = () => {
   ];
 
   return (
-    <div className="w-64 flex-shrink-0 border-r bg-gray-50 py-4">
+    <div className="w-64 flex-shrink-0 border-r bg-blue-600 py-4">
       <div className="px-6">
-        <h1 className="text-xl font-bold">Gaji Kita Selaras</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-xl font-bold text-white">Gaji Kita Selaras</h1>
+        <p className="text-sm text-blue-100">
           Sistem Penggajian Terpadu
         </p>
       </div>
@@ -62,10 +63,10 @@ const Sidebar = () => {
             <NavLink
               to={item.url}
               className={({ isActive }) =>
-                `flex items-center space-x-3 px-6 py-2 text-sm font-medium transition-colors hover:bg-gray-100 hover:text-gray-900 ${
+                `flex items-center space-x-3 px-6 py-2 text-sm font-medium transition-colors ${
                   isActive
-                    ? "bg-gray-100 text-gray-900"
-                    : "text-gray-500"
+                    ? "bg-blue-700 text-white"
+                    : "text-blue-100 hover:bg-blue-700 hover:text-white"
                 }`
               }
             >

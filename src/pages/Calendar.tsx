@@ -36,11 +36,11 @@ const CalendarPage = () => {
       const startDate = format(new Date(date.getFullYear(), date.getMonth(), 1), "yyyy-MM-dd");
       const endDate = format(new Date(date.getFullYear(), date.getMonth() + 1, 0), "yyyy-MM-dd");
       
-      // Fetch attendance data
+      // Using any for now since the types for these tables haven't been generated
       const { data: attendanceData, error: attendanceError } = await supabase
         .from('attendance_summary')
         .select('*')
-        .eq('month', startDate);
+        .eq('month', startDate) as { data: any, error: any };
       
       if (attendanceError) throw attendanceError;
       setAttendanceData(attendanceData || []);
@@ -50,7 +50,7 @@ const CalendarPage = () => {
         .from('payroll_summary')
         .select('*')
         .gte('period_start', startDate)
-        .lte('period_end', endDate);
+        .lte('period_end', endDate) as { data: any, error: any };
       
       if (payrollError) throw payrollError;
       setSalaryData(payrollData || []);
@@ -128,7 +128,7 @@ const CalendarPage = () => {
           </CardHeader>
           <CardContent>
             <Calendar
-              mode="default"
+              mode="single"
               selected={date}
               onSelect={handleDateChange}
               className="pointer-events-auto"
