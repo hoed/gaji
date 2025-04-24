@@ -40,9 +40,9 @@ export default function Login() {
     >
       <div className="w-full max-w-md bg-background/10 backdrop-blur-md border border-sidebar-border/20 rounded-lg shadow-lg p-6 sm:p-8">
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-foreground text-white">Welcome to Gajiku</h1>
+          <h1 className="text-2xl font-bold text-foreground text-white">Payroll System</h1>
           <p className="text-sm text-muted-foreground text-white">
-            Sign in to your account
+            PT Sinar Abadi Jaya
           </p>
         </div>
         <form className="space-y-4" onSubmit={handleLogin}>
