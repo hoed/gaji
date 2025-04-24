@@ -38,10 +38,10 @@ export default function Login() {
       className="min-h-screen flex items-center justify-center bg-cover bg-center bg-no-repeat"
       style={{ backgroundImage: "url('/background.webp')" }}
     >
-      <div className="w-full max-w-md bg-background/30 backdrop-blur-md border border-sidebar-border/50 rounded-lg shadow-lg p-6 sm:p-8">
+      <div className="w-full max-w-md bg-background/10 backdrop-blur-md border border-sidebar-border/20 rounded-lg shadow-lg p-6 sm:p-8">
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-foreground">Welcome to Gajiku</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-bold text-foreground text-white">Welcome to Gajiku</h1>
+          <p className="text-sm text-muted-foreground text-white">
             Sign in to your account
           </p>
         </div>
@@ -93,7 +93,7 @@ export default function Login() {
             {loading ? "Signing In..." : "Sign In"}
           </Button>
         </form>
-        <div className="text-center mt-4 text-sm text-muted-foreground">
+        <div className="text-center mt-4 text-sm text-muted-foreground text-white">
           © 2025 Gajiku. All rights reserved.
         </div>
       </div>
