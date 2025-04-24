@@ -1,6 +1,13 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Calendar, FileText, Calculator } from "lucide-react";
+import { 
+  ChartContainer,
+  ChartTooltip, 
+  ChartTooltipContent 
+} from "@/components/ui/chart";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { Badge } from "@/components/ui/badge";
 
 export default function Dashboard() {
   const summaryCards = [
@@ -57,6 +64,23 @@ export default function Dashboard() {
     },
   ];
 
+  // Chart data for attendance
+  const attendanceData = [
+    { month: "Jan", present: 92, absent: 5, leave: 3 },
+    { month: "Feb", present: 94, absent: 3, leave: 3 },
+    { month: "Mar", present: 90, absent: 7, leave: 3 },
+    { month: "Apr", present: 95, absent: 2, leave: 3 },
+  ];
+
+  // Chart data for salary distribution
+  const salaryDistributionData = [
+    { department: "HR", salary: 23000000 },
+    { department: "Finance", salary: 25000000 },
+    { department: "IT", salary: 30000000 },
+    { department: "Ops", salary: 21500000 },
+    { department: "Marketing", salary: 23000000 },
+  ];
+
   return (
     <div className="space-y-6">
       <div>
@@ -100,8 +124,7 @@ export default function Dashboard() {
                     <p className="text-sm text-muted-foreground">{event.date}</p>
                   </div>
                   <div className="flex items-center">
-                    <span className="inline-block h-2 w-2 rounded-full bg-amber-500 mr-2"></span>
-                    <span className="text-sm text-muted-foreground">Mendatang</span>
+                    <Badge variant="warning">Mendatang</Badge>
                   </div>
                 </div>
               ))}
@@ -144,6 +167,62 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Kehadiran Karyawan</CardTitle>
+            <CardDescription>Tren kehadiran 4 bulan terakhir</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={{}} className="aspect-[4/3]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={attendanceData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip content={(props) => (
+                    <ChartTooltipContent
+                      className="bg-white shadow-md border border-gray-200"
+                      {...props}
+                    />
+                  )} />
+                  <Legend />
+                  <Bar dataKey="present" name="Hadir" fill="#4ade80" />
+                  <Bar dataKey="absent" name="Absen" fill="#f87171" />
+                  <Bar dataKey="leave" name="Cuti" fill="#fbbf24" />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Total Gaji per Departemen</CardTitle>
+            <CardDescription>Distribusi gaji April 2025</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={{}} className="aspect-[4/3]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={salaryDistributionData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="department" />
+                  <YAxis />
+                  <Tooltip content={(props) => (
+                    <ChartTooltipContent
+                      className="bg-white shadow-md border border-gray-200"
+                      {...props}
+                    />
+                  )} />
+                  <Legend />
+                  <Bar dataKey="salary" name="Total Gaji (Rp)" fill="#3b82f6" />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartContainer>
           </CardContent>
         </Card>
       </div>
