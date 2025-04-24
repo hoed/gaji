@@ -10,7 +10,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { supabase } from "@/integrations/supabase/client"; // Adjust path
+import { Link } from "react-router-dom"; // Added for navigation
+import { supabase } from "@/integrations/supabase/client"; // Correct import path
 import { toast } from "@/components/ui/sonner";
 
 export default function Header() {
@@ -19,7 +20,7 @@ export default function Header() {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       toast.success("Logged out successfully");
-      // Redirect handled by App.tsx
+      // Redirect to /login handled by App.tsx
     } catch (error) {
       console.error("Logout error:", error.message);
       toast.error("Failed to log out. Please try again.");
@@ -78,8 +79,12 @@ export default function Header() {
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Akun Saya</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>Profil</DropdownMenuItem>
-              <DropdownMenuItem>Pengaturan</DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/profil" className="w-full cursor-pointer">Profil</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/pengaturan" className="w-full cursor-pointer">Pengaturan</Link>
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
                 Keluar
