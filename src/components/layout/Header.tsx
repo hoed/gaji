@@ -10,28 +10,19 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { useNavigate } from "react-router-dom";
-import { createClient } from "@supabase/supabase-js"; // Adjust based on your Supabase setup
-
-// Initialize Supabase client (adjust URL and key to your Supabase project)
-const supabase = createClient(
-  "https://ckumxbnzpvttfzjrocod.supabase.co", // From your previous memory
-  "your-anon-key" // Replace with your actual Supabase anon key
-);
+import { supabase } from "@/integrations/supabase/client"; // Adjust path
+import { toast } from "@/components/ui/sonner";
 
 export default function Header() {
-  const navigate = useNavigate();
-
   const handleLogout = async () => {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      navigate("/login"); // Redirect to login page after logout
+      toast.success("Logged out successfully");
+      // Redirect handled by App.tsx
     } catch (error) {
       console.error("Logout error:", error.message);
-      // Optionally show a toast notification (using Sonner from App.tsx)
-      // import { toast } from "@/components/ui/sonner";
-      // toast.error("Failed to log out. Please try again.");
+      toast.error("Failed to log out. Please try again.");
     }
   };
 
