@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 export default function Settings() {
   const { toast } = useToast();
   const [isGoogleCalendarConnected, setIsGoogleCalendarConnected] = useState(false);
+  const [apiKey, setApiKey] = useState("");
   
   const handleConnectCalendar = () => {
     // In a real implementation, this would trigger OAuth flow
@@ -51,6 +51,15 @@ export default function Settings() {
     });
   };
   
+  const handleGenerateApiKey = () => {
+    const newApiKey = crypto.randomUUID();
+    setApiKey(newApiKey);
+    toast({
+      title: "API Key dibuat",
+      description: "API Key baru telah dibuat untuk integrasi mesin absensi",
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -65,6 +74,7 @@ export default function Settings() {
           <TabsTrigger value="company">Perusahaan</TabsTrigger>
           <TabsTrigger value="tax">Pajak & BPJS</TabsTrigger>
           <TabsTrigger value="integration">Integrasi</TabsTrigger>
+          <TabsTrigger value="api">API</TabsTrigger>
         </TabsList>
         
         <TabsContent value="company">
@@ -288,6 +298,67 @@ export default function Settings() {
               </div>
               
               <Button>Simpan Pengaturan</Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="api">
+          <Card>
+            <CardHeader>
+              <CardTitle>API Keys</CardTitle>
+              <CardDescription>
+                Kelola API key untuk integrasi dengan mesin absensi
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">API Key Mesin Absensi</p>
+                    <p className="text-sm text-muted-foreground">
+                      Gunakan API key ini untuk mengintegrasikan mesin absensi dengan sistem
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <Input 
+                      value={apiKey} 
+                      readOnly 
+                      className="font-mono"
+                      placeholder="Belum ada API key yang dibuat"
+                    />
+                    <Button onClick={handleGenerateApiKey}>
+                      Generate API Key
+                    </Button>
+                  </div>
+                  {apiKey && (
+                    <p className="text-xs text-muted-foreground">
+                      ⚠️ Simpan API key ini dengan aman. API key tidak akan ditampilkan lagi setelah anda meninggalkan halaman ini.
+                    </p>
+                  )}
+                </div>
+                
+                <div className="space-y-2 pt-4">
+                  <h4 className="text-sm font-medium">Dokumentasi API</h4>
+                  <div className="rounded-md bg-muted p-4">
+                    <pre className="text-xs">
+                      <code>
+                        {`POST /api/attendance
+Content-Type: application/json
+Authorization: Bearer {YOUR_API_KEY}
+
+{
+  "employee_id": "uuid",
+  "check_in": "2025-04-24T08:00:00Z",
+  "check_out": "2025-04-24T17:00:00Z",
+  "status": "present"}`}
+                      </code>
+                    </pre>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

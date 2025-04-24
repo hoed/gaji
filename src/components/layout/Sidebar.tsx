@@ -19,7 +19,7 @@ interface SidebarProps {
 
 const Sidebar = ({ isCollapsed, toggleCollapse }: SidebarProps) => {
   const menuItems = [
-    { title: "Dashboard", url: "/", icon: LayoutDashboard },
+    { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
     { title: "Karyawan", url: "/karyawan", icon: User },
     { title: "Penggajian", url: "/penggajian", icon: Coins },
     { title: "Kehadiran", url: "/kehadiran", icon: CalendarClock },

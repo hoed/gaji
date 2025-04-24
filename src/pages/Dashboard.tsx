@@ -8,33 +8,85 @@ import {
 } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { Badge } from "@/components/ui/badge";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function Dashboard() {
+  const [summaryData, setSummaryData] = useState({
+    totalEmployees: 0,
+    totalSalary: 0,
+    attendanceRate: 0,
+    totalTax: 0
+  });
+
+  useEffect(() => {
+    const fetchSummaryData = async () => {
+      // Get total employees
+      const { count: employeeCount } = await supabase
+        .from('employees')
+        .select('*', { count: 'exact', head: true });
+
+      // Get total salary from latest payroll
+      const { data: payrollData } = await supabase
+        .from('payroll')
+        .select('net_salary')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      // Get attendance rate for current month
+      const { data: attendanceData } = await supabase
+        .from('attendance_summary')
+        .select('present_days, total_days')
+        .single();
+
+      // Get total tax from latest payroll
+      const { data: taxData } = await supabase
+        .from('payroll')
+        .select('pph21')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      const totalSalary = payrollData?.[0]?.net_salary || 0;
+      const attendanceRate = attendanceData ? 
+        (attendanceData.present_days / attendanceData.total_days) * 100 : 0;
+      const totalTax = taxData?.[0]?.pph21 || 0;
+
+      setSummaryData({
+        totalEmployees: employeeCount || 0,
+        totalSalary,
+        attendanceRate,
+        totalTax
+      });
+    };
+
+    fetchSummaryData();
+  }, []);
+
   const summaryCards = [
     {
       title: "Total Karyawan",
-      value: "42",
+      value: summaryData.totalEmployees.toString(),
       description: "Aktif bulan ini",
       icon: Users,
       color: "bg-blue-100 text-blue-700",
     },
     {
       title: "Total Penggajian",
-      value: "Rp 240,5jt",
+      value: `Rp ${(summaryData.totalSalary / 1000000).toFixed(1)}jt`,
       description: "Bulan April 2025",
       icon: Calculator,
       color: "bg-green-100 text-green-700",
     },
     {
       title: "Kehadiran",
-      value: "95%",
+      value: `${summaryData.attendanceRate.toFixed(0)}%`,
       description: "Tingkat kehadiran",
       icon: Calendar,
       color: "bg-amber-100 text-amber-700",
     },
     {
       title: "Pajak PPh 21",
-      value: "Rp 12,8jt",
+      value: `Rp ${(summaryData.totalTax / 1000000).toFixed(1)}jt`,
       description: "Bulan April 2025",
       icon: FileText,
       color: "bg-purple-100 text-purple-700",
