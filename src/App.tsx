@@ -1,3 +1,4 @@
+
 /* src/App.tsx */
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -13,9 +14,11 @@ import Payroll from "./pages/Payroll";
 import Attendance from "./pages/Attendance";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
+import ProfileSettings from "./pages/ProfileSettings";
 import Calendar from "./pages/Calendar";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
+import Index from "./pages/Index";
 
 const queryClient = new QueryClient();
 
@@ -58,9 +61,13 @@ const App = () => {
               path="/login"
               element={isAuthenticated ? <Navigate to="/" replace /> : <Login />}
             />
+            <Route
+              path="/"
+              element={<Index />}
+            />
             <Route element={<Layout />}>
               <Route
-                path="/"
+                path="/dashboard"
                 element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" replace />}
               />
               <Route
@@ -86,6 +93,10 @@ const App = () => {
               <Route
                 path="/pengaturan"
                 element={isAuthenticated ? <Settings /> : <Navigate to="/login" replace />}
+              />
+              <Route
+                path="/pengaturan/profil"
+                element={isAuthenticated ? <ProfileSettings /> : <Navigate to="/login" replace />}
               />
             </Route>
             <Route path="*" element={<NotFound />} />

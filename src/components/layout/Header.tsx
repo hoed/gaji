@@ -1,5 +1,6 @@
+
 /* src/components/layout/Header.tsx */
-import { Bell, Search } from "lucide-react";
+import { Bell, Search, Settings, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -10,26 +11,39 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { supabase } from "@/integrations/supabase/client"; // Adjust path
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/sonner";
+import { useNavigate } from "react-router-dom";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export default function Header() {
+  const navigate = useNavigate();
+  const isMobile = useIsMobile();
+
   const handleLogout = async () => {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      toast.success("Logged out successfully");
-      // Redirect handled by App.tsx
+      toast.success("Berhasil keluar dari aplikasi");
+      navigate("/login");
     } catch (error) {
       console.error("Logout error:", error.message);
-      toast.error("Failed to log out. Please try again.");
+      toast.error("Gagal keluar. Silakan coba lagi.");
     }
+  };
+
+  const handleProfileClick = () => {
+    navigate("/pengaturan/profil");
+  };
+
+  const handleSettingsClick = () => {
+    navigate("/pengaturan");
   };
 
   return (
     <header className="border-b bg-background sticky top-0 z-30 h-16 flex items-center px-4 sm:px-6">
-      <div className="flex flex-1 items-center justify-between">
-        <div className="flex items-center gap-2 md:w-64">
+      <div className="flex flex-1 items-center justify-between max-w-full">
+        <div className={`${isMobile ? 'hidden' : 'flex'} items-center gap-2 md:w-64`}>
           <div className="relative hidden md:flex w-full">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -75,14 +89,21 @@ export default function Header() {
                 <span className="hidden md:inline-block">Admin HR</span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>Akun Saya</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>Profil</DropdownMenuItem>
-              <DropdownMenuItem>Pengaturan</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleProfileClick} className="cursor-pointer">
+                <User className="mr-2 h-4 w-4" />
+                <span>Profil</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleSettingsClick} className="cursor-pointer">
+                <Settings className="mr-2 h-4 w-4" />
+                <span>Pengaturan</span>
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
-                Keluar
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Keluar</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
