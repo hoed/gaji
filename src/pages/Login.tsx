@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Lock, Mail } from "lucide-react";
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client"; // Adjust path to your Supabase client
+import { supabase } from "@/integrations/supabase/client"; // Correct import path
 import { toast } from "@/components/ui/sonner";
 
 export default function Login() {
@@ -24,7 +24,7 @@ export default function Login() {
       });
       if (error) throw error;
       toast.success("Logged in successfully");
-      // Redirect handled by App.tsx
+      // Redirect to / handled by App.tsx
     } catch (error) {
       setError(error.message || "Login failed. Please try again.");
       toast.error(error.message || "Login failed");
@@ -34,7 +34,10 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-sidebar/20 p-4">
+    <div
+      className="min-h-screen flex items-center justify-center bg-cover bg-center bg-no-repeat"
+      style={{ backgroundImage: "url('/background.webp')" }}
+    >
       <div className="w-full max-w-md bg-background/30 backdrop-blur-md border border-sidebar-border/50 rounded-lg shadow-lg p-6 sm:p-8">
         <div className="text-center mb-6">
           <h1 className="text-2xl font-bold text-foreground">Welcome to Gajiku</h1>
