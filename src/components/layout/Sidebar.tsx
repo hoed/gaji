@@ -1,4 +1,4 @@
-/* /src/components/layout/Sidebar.tsx */
+/* src/components/layout/Sidebar.tsx */
 import {
   LayoutDashboard,
   FileText,
@@ -19,48 +19,20 @@ interface SidebarProps {
 
 const Sidebar = ({ isCollapsed, toggleCollapse }: SidebarProps) => {
   const menuItems = [
-    {
-      title: "Dashboard",
-      url: "/",
-      icon: LayoutDashboard,
-    },
-    {
-      title: "Karyawan",
-      url: "/karyawan",
-      icon: User,
-    },
-    {
-      title: "Penggajian",
-      url: "/penggajian",
-      icon: Coins,
-    },
-    {
-      title: "Kehadiran",
-      url: "/kehadiran",
-      icon: CalendarClock,
-    },
-    {
-      title: "Kalender",
-      url: "/kalender",
-      icon: CalendarDays,
-    },
-    {
-      title: "Laporan",
-      url: "/laporan",
-      icon: FileText,
-    },
-    {
-      title: "Pengaturan",
-      url: "/pengaturan",
-      icon: Settings,
-    },
+    { title: "Dashboard", url: "/", icon: LayoutDashboard },
+    { title: "Karyawan", url: "/karyawan", icon: User },
+    { title: "Penggajian", url: "/penggajian", icon: Coins },
+    { title: "Kehadiran", url: "/kehadiran", icon: CalendarClock },
+    { title: "Kalender", url: "/kalender", icon: CalendarDays },
+    { title: "Laporan", url: "/laporan", icon: FileText },
+    { title: "Pengaturan", url: "/pengaturan", icon: Settings },
   ];
 
   return (
     <div
       className={`${
         isCollapsed ? "w-16" : "w-64"
-      } flex-shrink-0 border-r bg-sidebar-background py-4 transition-all duration-300`}
+      } flex-shrink-0 border-r bg-sidebar py-4 transition-all duration-300`}
     >
       <div className="px-6 flex items-center justify-between">
         {!isCollapsed && (

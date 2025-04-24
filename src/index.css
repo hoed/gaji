@@ -1,4 +1,4 @@
-/* /src/index.css */
+/* src/index.css (unchanged, for reference) */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap');
 
 @tailwind base;
@@ -9,39 +9,29 @@
   :root {
     --background: 210 50% 98%;
     --foreground: 222 47% 11%;
-
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
-
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
-
     --primary: 210 100% 45%;
     --primary-foreground: 210 40% 98%;
-
     --secondary: 183 100% 36%;
     --secondary-foreground: 222 47% 11%;
-
     --muted: 210 40% 96%;
     --muted-foreground: 215 16% 47%;
-
     --accent: 210 40% 90%;
     --accent-foreground: 222 47% 11%;
-
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
-
     --border: 214 32% 91%;
     --input: 214 32% 91%;
     --ring: 210 100% 45%;
-
     --radius: 0.5rem;
-
-    --sidebar-background: 217 50% 22%; /* Navy blue */
-    --sidebar-foreground: 210 40% 98%; /* White text */
-    --sidebar-primary: 217 50% 30%; /* Lighter navy for active state */
+    --sidebar-background: 217 50% 22%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 217 50% 30%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 217 50% 28%; /* Hover state */
+    --sidebar-accent: 217 50% 28%;
     --sidebar-accent-foreground: 210 40% 98%;
     --sidebar-border: 217 50% 28%;
     --sidebar-ring: 217 91% 60%;
@@ -50,33 +40,24 @@
   .dark {
     --background: 222 47% 11%;
     --foreground: 210 40% 98%;
-
     --card: 222 47% 11%;
     --card-foreground: 210 40% 98%;
-
     --popover: 222 47% 11%;
     --popover-foreground: 210 40% 98%;
-
     --primary: 210 100% 50%;
     --primary-foreground: 222 47% 11%;
-
     --secondary: 183 100% 40%;
     --secondary-foreground: 222 47% 11%;
-
     --muted: 217 33% 18%;
     --muted-foreground: 215 20% 65%;
-
     --accent: 217 33% 18%;
     --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 63% 31%;
+    --destructive: 0 63% 31 Queste: true,
     --destructive-foreground: 210 40% 98%;
-
     --border: 217 33% 18%;
     --input: 217 33% 18%;
     --ring: 213 27% 84%;
-
-    --sidebar-background: 222 47% 11%; /* Keep dark theme as is */
+    --sidebar-background: 222 47% 11%;
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 210 100% 50%;
     --sidebar-primary-foreground: 0 0% 100%;
@@ -91,11 +72,9 @@
   * {
     @apply border-border;
   }
-
   body {
     @apply bg-background text-foreground font-sans;
   }
-
   h1, h2, h3, h4, h5, h6 {
     @apply font-heading font-medium;
   }
