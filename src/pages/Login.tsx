@@ -94,7 +94,7 @@ export default function Login() {
           </Button>
         </form>
         <div className="text-center mt-4 text-sm text-muted-foreground text-white">
-          © 2025 Gajiku. All rights reserved.
+          © 2025 Hoed - Payroll System. All rights reserved.
         </div>
       </div>
     </div>
