@@ -81,6 +81,22 @@ export default function Dashboard() {
     { department: "Marketing", salary: 23000000 },
   ];
 
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <ChartTooltipContent className="bg-white shadow-md border border-gray-200">
+          <p className="font-medium">{label}</p>
+          {payload.map((entry: any, index: number) => (
+            <p key={index} style={{ color: entry.color }}>
+              {entry.name}: {entry.value}
+            </p>
+          ))}
+        </ChartTooltipContent>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -184,12 +200,7 @@ export default function Dashboard() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="month" />
                   <YAxis />
-                  <Tooltip content={(props) => (
-                    <ChartTooltipContent
-                      className="bg-white shadow-md border border-gray-200"
-                      {...props}
-                    />
-                  )} />
+                  <Tooltip content={CustomTooltip} />
                   <Legend />
                   <Bar dataKey="present" name="Hadir" fill="#4ade80" />
                   <Bar dataKey="absent" name="Absen" fill="#f87171" />
@@ -212,12 +223,7 @@ export default function Dashboard() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="department" />
                   <YAxis />
-                  <Tooltip content={(props) => (
-                    <ChartTooltipContent
-                      className="bg-white shadow-md border border-gray-200"
-                      {...props}
-                    />
-                  )} />
+                  <Tooltip content={CustomTooltip} />
                   <Legend />
                   <Bar dataKey="salary" name="Total Gaji (Rp)" fill="#3b82f6" />
                 </BarChart>
