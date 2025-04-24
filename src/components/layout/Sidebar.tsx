@@ -37,7 +37,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }: SidebarProps) => {
       <div className="px-6 flex items-center justify-between">
         {!isCollapsed && (
           <div>
-            <h1 className="text-xl font-bold text-sidebar-foreground">Gajiku</h1>
+            <h1 className="text-xl font-bold text-sidebar-foreground">Payroll System</h1>
             <p className="text-sm text-sidebar-foreground/80">
               Sistem Penggajian Terpadu
             </p>
