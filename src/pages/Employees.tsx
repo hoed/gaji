@@ -29,18 +29,55 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
-import { Search, Plus, MoreVertical, Eye, Edit, XCircle } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Search, Plus, MoreVertical, Eye, Edit, XCircle, Save } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
 import { Badge } from "@/components/ui/badge";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { Label } from "@/components/ui/label";
 
 // Define interface for enriched employee (not a database table)
 interface EnrichedEmployee extends Tables<"employees"> {
   position: string;
   department: string;
+  basic_salary?: number;
+  transportation_allowance?: number;
+  allowances?: number;
+  incentives?: number;
+  tax_deduction?: number;
+  bpjs_deduction?: number;
+  net_salary?: number;
+}
+
+interface EmployeePayrollDetails {
+  basic_salary: number;
+  transportation_allowance: number;
+  allowances: number;
+  incentives: number;
+  tax_deduction: number;
+  bpjs_deduction: number;
+  net_salary: number;
+}
+
+interface Department {
+  id: string;
+  name: string;
+}
+
+interface Position {
+  id: string;
+  title: string;
+  department_id: string;
+  salary_base: number;
 }
 
 export default function Employees() {
@@ -50,6 +87,10 @@ export default function Employees() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedEmployee, setSelectedEmployee] = useState<EnrichedEmployee | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [positions, setPositions] = useState<Position[]>([]);
+  const [filteredPositions, setFilteredPositions] = useState<Position[]>([]);
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
@@ -58,19 +99,61 @@ export default function Employees() {
     const fetchEmployees = async () => {
       setIsLoading(true);
       try {
+        // Fetch departments
+        const { data: departmentsData, error: departmentsError } = await supabase
+          .from('departments')
+          .select('*');
+        
+        if (departmentsError) throw departmentsError;
+        setDepartments(departmentsData);
+        
+        // Fetch positions
+        const { data: positionsData, error: positionsError } = await supabase
+          .from('positions')
+          .select('*');
+        
+        if (positionsError) throw positionsError;
+        setPositions(positionsData);
+
+        // Fetch employees with their positions and departments
         const { data, error } = await supabase
           .from('employees')
           .select(`
             *,
-            positions (title, department_id, departments (name))
+            positions (id, title, department_id, salary_base, departments (id, name))
           `);
         if (error) throw error;
 
-        const enrichedData: EnrichedEmployee[] = data.map(emp => ({
-          ...emp,
-          position: emp.positions?.title || 'Unknown',
-          department: emp.positions?.departments?.name || 'Unknown',
+        // Fetch payroll data for each employee
+        const enrichedData: EnrichedEmployee[] = await Promise.all(data.map(async (emp) => {
+          // Get the latest payroll for this employee
+          const { data: payrollData, error: payrollError } = await supabase
+            .from('payroll')
+            .select('*')
+            .eq('employee_id', emp.id)
+            .order('period_start', { ascending: false })
+            .limit(1);
+          
+          if (payrollError) {
+            console.error('Error fetching payroll data:', payrollError);
+          }
+
+          const payroll = payrollData && payrollData.length > 0 ? payrollData[0] : null;
+          
+          return {
+            ...emp,
+            position: emp.positions?.title || 'Unknown',
+            department: emp.positions?.departments?.name || 'Unknown',
+            basic_salary: payroll?.basic_salary || emp.positions?.salary_base || 0,
+            transportation_allowance: (payroll?.allowances || 0) * 0.3,
+            allowances: payroll?.allowances || 0,
+            incentives: (payroll?.allowances || 0) * 0.2,
+            tax_deduction: payroll?.pph21 || 0,
+            bpjs_deduction: (payroll?.bpjs_kes_employee || 0) + (payroll?.bpjs_tk_jht_employee || 0) + (payroll?.bpjs_tk_jp_employee || 0),
+            net_salary: payroll?.net_salary || 0
+          };
         }));
+        
         setEmployees(enrichedData);
       } catch (error) {
         console.error('Error fetching employees:', error);
@@ -96,15 +179,19 @@ export default function Employees() {
   const handleViewDetails = (employee: EnrichedEmployee) => {
     setSelectedEmployee(employee);
     setIsDetailsOpen(true);
+    setIsEditMode(false);
   };
 
   const handleEditEmployee = (employee: EnrichedEmployee) => {
     setSelectedEmployee(employee);
-    // In real implementation, would open an edit dialog
-    toast({
-      title: "Info",
-      description: `Fitur edit untuk ${employee.first_name} sedang dikembangkan.`,
-    });
+    setIsEditMode(true);
+    setIsDetailsOpen(true);
+
+    // Filter positions based on department
+    if (departments.length && positions.length) {
+      const departmentId = positions.find(pos => pos.title === employee.position)?.department_id || '';
+      filterPositionsByDepartment(departmentId);
+    }
   };
 
   const handleDeactivateEmployee = (employee: EnrichedEmployee) => {
@@ -113,6 +200,144 @@ export default function Employees() {
       title: "Info",
       description: `Fitur nonaktifkan untuk ${employee.first_name} sedang dikembangkan.`,
     });
+  };
+
+  const handleDepartmentChange = (departmentId: string) => {
+    filterPositionsByDepartment(departmentId);
+  };
+
+  const filterPositionsByDepartment = (departmentId: string) => {
+    const filtered = positions.filter(pos => pos.department_id === departmentId);
+    setFilteredPositions(filtered);
+  };
+
+  const handleSaveEmployee = async () => {
+    if (!selectedEmployee) return;
+    
+    try {
+      // Update employee data
+      const { error } = await supabase
+        .from('employees')
+        .update({
+          first_name: selectedEmployee.first_name,
+          last_name: selectedEmployee.last_name,
+          email: selectedEmployee.email,
+          phone: selectedEmployee.phone,
+          nik: selectedEmployee.nik,
+          position_id: selectedEmployee.position_id,
+          birth_date: selectedEmployee.birth_date,
+          hire_date: selectedEmployee.hire_date,
+          tax_status: selectedEmployee.tax_status,
+          npwp: selectedEmployee.npwp,
+          bpjs_kesehatan: selectedEmployee.bpjs_kesehatan,
+          bpjs_ketenagakerjaan: selectedEmployee.bpjs_ketenagakerjaan,
+          bank_name: selectedEmployee.bank_name,
+          bank_account: selectedEmployee.bank_account
+        })
+        .eq('id', selectedEmployee.id);
+
+      if (error) throw error;
+
+      // Check if we need to update or create a new payroll entry
+      const { data: existingPayroll } = await supabase
+        .from('payroll')
+        .select('*')
+        .eq('employee_id', selectedEmployee.id)
+        .order('period_start', { ascending: false })
+        .limit(1);
+
+      // Calculate new values
+      const basicSalary = selectedEmployee.basic_salary || 0;
+      const allowances = selectedEmployee.allowances || 0;
+      const pph21 = selectedEmployee.tax_deduction || 0;
+      const bpjs_kes_employee = (selectedEmployee.bpjs_deduction || 0) * 0.2; // Simplified calculation
+      const bpjs_tk_jht_employee = (selectedEmployee.bpjs_deduction || 0) * 0.4; // Simplified calculation
+      const bpjs_tk_jp_employee = (selectedEmployee.bpjs_deduction || 0) * 0.4; // Simplified calculation
+      const netSalary = basicSalary + allowances - pph21 - (bpjs_kes_employee + bpjs_tk_jht_employee + bpjs_tk_jp_employee);
+
+      // Get current date for period
+      const today = new Date();
+      const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+      if (existingPayroll && existingPayroll.length > 0) {
+        // Update existing payroll
+        await supabase
+          .from('payroll')
+          .update({
+            basic_salary: basicSalary,
+            allowances: allowances,
+            pph21: pph21,
+            bpjs_kes_employee: bpjs_kes_employee,
+            bpjs_tk_jht_employee: bpjs_tk_jht_employee,
+            bpjs_tk_jp_employee: bpjs_tk_jp_employee,
+            net_salary: netSalary
+          })
+          .eq('id', existingPayroll[0].id);
+      } else {
+        // Create new payroll entry
+        await supabase
+          .from('payroll')
+          .insert({
+            employee_id: selectedEmployee.id,
+            period_start: firstDayOfMonth.toISOString(),
+            period_end: lastDayOfMonth.toISOString(),
+            basic_salary: basicSalary,
+            allowances: allowances,
+            pph21: pph21,
+            bpjs_kes_employee: bpjs_kes_employee,
+            bpjs_tk_jht_employee: bpjs_tk_jht_employee,
+            bpjs_tk_jp_employee: bpjs_tk_jp_employee,
+            net_salary: netSalary
+          });
+      }
+
+      // Refresh employee data
+      const { data: updatedEmployeeData, error: refreshError } = await supabase
+        .from('employees')
+        .select(`
+          *,
+          positions (title, department_id, departments (name))
+        `)
+        .eq('id', selectedEmployee.id)
+        .single();
+
+      if (refreshError) throw refreshError;
+
+      // Update employees list
+      setEmployees(prev => 
+        prev.map(emp => 
+          emp.id === selectedEmployee.id 
+            ? { 
+                ...updatedEmployeeData,
+                position: updatedEmployeeData.positions?.title || 'Unknown',
+                department: updatedEmployeeData.positions?.departments?.name || 'Unknown',
+                basic_salary: basicSalary,
+                transportation_allowance: allowances * 0.3,
+                allowances: allowances,
+                incentives: allowances * 0.2,
+                tax_deduction: pph21,
+                bpjs_deduction: bpjs_kes_employee + bpjs_tk_jht_employee + bpjs_tk_jp_employee,
+                net_salary: netSalary
+              } 
+            : emp
+        )
+      );
+
+      toast({
+        title: "Sukses",
+        description: "Data karyawan berhasil diperbarui.",
+      });
+
+      setIsEditMode(false);
+    } catch (error) {
+      console.error('Error updating employee:', error);
+      toast({
+        title: "Error",
+        description: "Gagal memperbarui data karyawan.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -237,9 +462,9 @@ export default function Employees() {
                       <TableCell className={isMobile ? "hidden" : ""}>{employee.position}</TableCell>
                       <TableCell className={isMobile ? "hidden" : ""}>{employee.department}</TableCell>
                       <TableCell className={isMobile ? "hidden" : ""}>{new Date(employee.hire_date).toLocaleDateString('id-ID')}</TableCell>
-                      <TableCell className={isMobile ? "hidden" : ""}>Rp {(employee?.basic_salary || 0).toLocaleString('id-ID')}</TableCell>
+                      <TableCell className={isMobile ? "hidden" : ""}>Rp {(employee.basic_salary || 0).toLocaleString('id-ID')}</TableCell>
                       <TableCell>
-                        <Badge className="bg-green-100 text-green-800 hover:bg-green-200">
+                        <Badge variant="success">
                           Aktif
                         </Badge>
                       </TableCell>
@@ -282,94 +507,341 @@ export default function Employees() {
 
       {/* Employee Detail Dialog */}
       <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[700px]">
           <DialogHeader>
-            <DialogTitle>Detail Karyawan</DialogTitle>
+            <DialogTitle>{isEditMode ? "Edit Data Karyawan" : "Detail Karyawan"}</DialogTitle>
           </DialogHeader>
           {selectedEmployee && (
-            <div className="grid gap-4 py-4">
-              <div className="flex flex-col sm:flex-row gap-6">
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold mb-4">Informasi Pribadi</h3>
-                  <div className="grid grid-cols-1 gap-2">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Nama Lengkap</p>
-                      <p className="font-medium">
-                        {`${selectedEmployee.first_name} ${selectedEmployee.last_name || ''}`.trim()}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">NIK</p>
-                      <p>{selectedEmployee.nik || '-'}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Email</p>
-                      <p>{selectedEmployee.email || '-'}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Telepon</p>
-                      <p>{selectedEmployee.phone || '-'}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Tanggal Lahir</p>
-                      <p>{selectedEmployee.birth_date ? new Date(selectedEmployee.birth_date).toLocaleDateString('id-ID') : '-'}</p>
-                    </div>
+            <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-1">
+              {/* Personal Information */}
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Informasi Pribadi</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName">Nama Depan</Label>
+                    <Input 
+                      id="firstName" 
+                      value={selectedEmployee.first_name} 
+                      onChange={e => setSelectedEmployee({...selectedEmployee, first_name: e.target.value})}
+                      disabled={!isEditMode}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Nama Belakang</Label>
+                    <Input 
+                      id="lastName" 
+                      value={selectedEmployee.last_name || ''} 
+                      onChange={e => setSelectedEmployee({...selectedEmployee, last_name: e.target.value})}
+                      disabled={!isEditMode}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="nik">NIK</Label>
+                    <Input 
+                      id="nik" 
+                      value={selectedEmployee.nik || ''} 
+                      onChange={e => setSelectedEmployee({...selectedEmployee, nik: e.target.value})}
+                      disabled={!isEditMode}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input 
+                      id="email" 
+                      type="email"
+                      value={selectedEmployee.email || ''} 
+                      onChange={e => setSelectedEmployee({...selectedEmployee, email: e.target.value})}
+                      disabled={!isEditMode}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">No. Telepon</Label>
+                    <Input 
+                      id="phone" 
+                      value={selectedEmployee.phone || ''} 
+                      onChange={e => setSelectedEmployee({...selectedEmployee, phone: e.target.value})}
+                      disabled={!isEditMode}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="birthDate">Tanggal Lahir</Label>
+                    <Input 
+                      id="birthDate" 
+                      type="date"
+                      value={selectedEmployee.birth_date || ''} 
+                      onChange={e => setSelectedEmployee({...selectedEmployee, birth_date: e.target.value})}
+                      disabled={!isEditMode}
+                    />
                   </div>
                 </div>
-
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold mb-4">Informasi Pekerjaan</h3>
-                  <div className="grid grid-cols-1 gap-2">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Jabatan</p>
-                      <p className="font-medium">{selectedEmployee.position}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Departemen</p>
-                      <p>{selectedEmployee.department}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Tanggal Bergabung</p>
-                      <p>{new Date(selectedEmployee.hire_date).toLocaleDateString('id-ID')}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Gaji Pokok</p>
-                      <p>Rp {(selectedEmployee?.basic_salary || 0).toLocaleString('id-ID')}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Status</p>
-                      <Badge className="bg-green-100 text-green-800">Aktif</Badge>
-                    </div>
+              </div>
+              
+              {/* Job Information */}
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Informasi Pekerjaan</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {isEditMode ? (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="department">Departemen</Label>
+                        <Select 
+                          onValueChange={(value) => handleDepartmentChange(value)}
+                          defaultValue={positions.find(pos => pos.title === selectedEmployee.position)?.department_id}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Pilih departemen" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {departments.map(dept => (
+                              <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="position">Jabatan</Label>
+                        <Select 
+                          onValueChange={(value) => {
+                            const position = positions.find(pos => pos.id === value);
+                            setSelectedEmployee({
+                              ...selectedEmployee, 
+                              position_id: value,
+                              position: position?.title || '',
+                              basic_salary: position?.salary_base || 0
+                            });
+                          }}
+                          defaultValue={selectedEmployee.position_id}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Pilih jabatan" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {filteredPositions.length > 0 
+                              ? filteredPositions.map(pos => (
+                                  <SelectItem key={pos.id} value={pos.id}>{pos.title}</SelectItem>
+                                ))
+                              : positions.map(pos => (
+                                  <SelectItem key={pos.id} value={pos.id}>{pos.title}</SelectItem>
+                                ))
+                            }
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Departemen</p>
+                        <p className="font-medium">{selectedEmployee.department}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Jabatan</p>
+                        <p className="font-medium">{selectedEmployee.position}</p>
+                      </div>
+                    </>
+                  )}
+                  <div className="space-y-2">
+                    <Label htmlFor="hireDate">Tanggal Bergabung</Label>
+                    <Input 
+                      id="hireDate" 
+                      type="date"
+                      value={selectedEmployee.hire_date} 
+                      onChange={e => setSelectedEmployee({...selectedEmployee, hire_date: e.target.value})}
+                      disabled={!isEditMode}
+                    />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Status</p>
+                    <Badge variant="success">Aktif</Badge>
                   </div>
                 </div>
               </div>
 
-              <div className="pt-2">
-                <h3 className="text-lg font-semibold mb-2">Informasi Keuangan</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+              {/* Financial Information */}
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Informasi Keuangan</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="basicSalary">Gaji Pokok</Label>
+                    <Input 
+                      id="basicSalary" 
+                      type="number"
+                      value={selectedEmployee.basic_salary || 0}
+                      onChange={e => setSelectedEmployee({...selectedEmployee, basic_salary: parseFloat(e.target.value)})}
+                      disabled={!isEditMode}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="transportAllowance">Tunjangan Transportasi</Label>
+                    <Input 
+                      id="transportAllowance" 
+                      type="number"
+                      value={selectedEmployee.transportation_allowance || 0}
+                      onChange={e => {
+                        const value = parseFloat(e.target.value);
+                        const newAllowances = (selectedEmployee.allowances || 0) - (selectedEmployee.transportation_allowance || 0) + value;
+                        setSelectedEmployee({
+                          ...selectedEmployee, 
+                          transportation_allowance: value,
+                          allowances: newAllowances
+                        });
+                      }}
+                      disabled={!isEditMode}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="allowances">Total Tunjangan</Label>
+                    <Input 
+                      id="allowances" 
+                      type="number"
+                      value={selectedEmployee.allowances || 0}
+                      onChange={e => setSelectedEmployee({...selectedEmployee, allowances: parseFloat(e.target.value)})}
+                      disabled={!isEditMode}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="incentives">Insentif</Label>
+                    <Input 
+                      id="incentives" 
+                      type="number"
+                      value={selectedEmployee.incentives || 0}
+                      onChange={e => {
+                        const value = parseFloat(e.target.value);
+                        const newAllowances = (selectedEmployee.allowances || 0) - (selectedEmployee.incentives || 0) + value;
+                        setSelectedEmployee({
+                          ...selectedEmployee, 
+                          incentives: value,
+                          allowances: newAllowances
+                        });
+                      }}
+                      disabled={!isEditMode}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="npwp">NPWP</Label>
+                    <Input 
+                      id="npwp" 
+                      value={selectedEmployee.npwp || ''}
+                      onChange={e => setSelectedEmployee({...selectedEmployee, npwp: e.target.value})}
+                      disabled={!isEditMode}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="taxStatus">Status Pajak</Label>
+                    <Select 
+                      onValueChange={(value) => setSelectedEmployee({...selectedEmployee, tax_status: value})}
+                      defaultValue={selectedEmployee.tax_status || 'TK/0'}
+                      disabled={!isEditMode}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Status pajak" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="TK/0">TK/0</SelectItem>
+                        <SelectItem value="K/0">K/0</SelectItem>
+                        <SelectItem value="K/1">K/1</SelectItem>
+                        <SelectItem value="K/2">K/2</SelectItem>
+                        <SelectItem value="K/3">K/3</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="taxDeduction">Potongan Pajak</Label>
+                    <Input 
+                      id="taxDeduction" 
+                      type="number"
+                      value={selectedEmployee.tax_deduction || 0}
+                      onChange={e => setSelectedEmployee({...selectedEmployee, tax_deduction: parseFloat(e.target.value)})}
+                      disabled={!isEditMode}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* BPJS Information */}
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Informasi BPJS</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="bpjsKesehatan">BPJS Kesehatan</Label>
+                    <Input 
+                      id="bpjsKesehatan" 
+                      value={selectedEmployee.bpjs_kesehatan || ''}
+                      onChange={e => setSelectedEmployee({...selectedEmployee, bpjs_kesehatan: e.target.value})}
+                      disabled={!isEditMode}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="bpjsKetenagakerjaan">BPJS Ketenagakerjaan</Label>
+                    <Input 
+                      id="bpjsKetenagakerjaan" 
+                      value={selectedEmployee.bpjs_ketenagakerjaan || ''}
+                      onChange={e => setSelectedEmployee({...selectedEmployee, bpjs_ketenagakerjaan: e.target.value})}
+                      disabled={!isEditMode}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="bpjsDeduction">Potongan BPJS</Label>
+                    <Input 
+                      id="bpjsDeduction" 
+                      type="number"
+                      value={selectedEmployee.bpjs_deduction || 0}
+                      onChange={e => setSelectedEmployee({...selectedEmployee, bpjs_deduction: parseFloat(e.target.value)})}
+                      disabled={!isEditMode}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Bank Information */}
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Informasi Bank</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="bankName">Nama Bank</Label>
+                    <Input 
+                      id="bankName" 
+                      value={selectedEmployee.bank_name || ''}
+                      onChange={e => setSelectedEmployee({...selectedEmployee, bank_name: e.target.value})}
+                      disabled={!isEditMode}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="bankAccount">Nomor Rekening</Label>
+                    <Input 
+                      id="bankAccount" 
+                      value={selectedEmployee.bank_account || ''}
+                      onChange={e => setSelectedEmployee({...selectedEmployee, bank_account: e.target.value})}
+                      disabled={!isEditMode}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Summary Information */}
+              <div className="pt-4 border-t">
+                <h3 className="text-lg font-semibold mb-4">Ringkasan Gaji</h3>
+                <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <p className="text-sm text-muted-foreground">NPWP</p>
-                    <p>{selectedEmployee.npwp || '-'}</p>
+                    <p className="text-sm text-muted-foreground">Gaji Pokok</p>
+                    <p>Rp {(selectedEmployee.basic_salary || 0).toLocaleString('id-ID')}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Status Pajak</p>
-                    <p>{selectedEmployee.tax_status || 'TK/0'}</p>
+                    <p className="text-sm text-muted-foreground">Total Tunjangan</p>
+                    <p>Rp {(selectedEmployee.allowances || 0).toLocaleString('id-ID')}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Bank</p>
-                    <p>{selectedEmployee.bank_name || '-'}</p>
+                    <p className="text-sm text-muted-foreground">Total Potongan</p>
+                    <p>Rp {((selectedEmployee.tax_deduction || 0) + (selectedEmployee.bpjs_deduction || 0)).toLocaleString('id-ID')}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Nomor Rekening</p>
-                    <p>{selectedEmployee.bank_account || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">BPJS Kesehatan</p>
-                    <p>{selectedEmployee.bpjs_kesehatan || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">BPJS Ketenagakerjaan</p>
-                    <p>{selectedEmployee.bpjs_ketenagakerjaan || '-'}</p>
+                    <p className="font-semibold">Gaji Bersih</p>
+                    <p className="font-bold">Rp {(
+                      (selectedEmployee.basic_salary || 0) + 
+                      (selectedEmployee.allowances || 0) - 
+                      (selectedEmployee.tax_deduction || 0) - 
+                      (selectedEmployee.bpjs_deduction || 0)
+                    ).toLocaleString('id-ID')}</p>
                   </div>
                 </div>
               </div>
@@ -377,9 +849,18 @@ export default function Employees() {
           )}
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="outline">Tutup</Button>
+              <Button variant="outline">
+                {isEditMode ? "Batal" : "Tutup"}
+              </Button>
             </DialogClose>
-            <Button onClick={() => handleEditEmployee(selectedEmployee!)}>Edit Data</Button>
+            {isEditMode ? (
+              <Button onClick={handleSaveEmployee} className="flex items-center gap-2">
+                <Save size={16} />
+                <span>Simpan Perubahan</span>
+              </Button>
+            ) : (
+              <Button onClick={() => setIsEditMode(true)}>Edit Data</Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
