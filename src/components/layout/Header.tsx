@@ -1,4 +1,4 @@
-
+/* src/components/layout/Header.tsx */
 import { Bell, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,8 +10,31 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { useNavigate } from "react-router-dom";
+import { createClient } from "@supabase/supabase-js"; // Adjust based on your Supabase setup
+
+// Initialize Supabase client (adjust URL and key to your Supabase project)
+const supabase = createClient(
+  "https://ckumxbnzpvttfzjrocod.supabase.co", // From your previous memory
+  "your-anon-key" // Replace with your actual Supabase anon key
+);
 
 export default function Header() {
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      navigate("/login"); // Redirect to login page after logout
+    } catch (error) {
+      console.error("Logout error:", error.message);
+      // Optionally show a toast notification (using Sonner from App.tsx)
+      // import { toast } from "@/components/ui/sonner";
+      // toast.error("Failed to log out. Please try again.");
+    }
+  };
+
   return (
     <header className="border-b bg-background sticky top-0 z-30 h-16 flex items-center px-4 sm:px-6">
       <div className="flex flex-1 items-center justify-between">
@@ -67,7 +90,9 @@ export default function Header() {
               <DropdownMenuItem>Profil</DropdownMenuItem>
               <DropdownMenuItem>Pengaturan</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>Keluar</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
+                Keluar
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
