@@ -1,4 +1,4 @@
-
+/* /src/index.css */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap');
 
 @tailwind base;
@@ -37,13 +37,13 @@
 
     --radius: 0.5rem;
 
-    --sidebar-background: 212 60% 16%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 210 100% 45%;
+    --sidebar-background: 217 50% 22%; /* Navy blue */
+    --sidebar-foreground: 210 40% 98%; /* White text */
+    --sidebar-primary: 217 50% 30%; /* Lighter navy for active state */
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 211 50% 22%;
+    --sidebar-accent: 217 50% 28%; /* Hover state */
     --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 211 50% 22%;
+    --sidebar-border: 217 50% 28%;
     --sidebar-ring: 217 91% 60%;
   }
 
@@ -76,7 +76,7 @@
     --input: 217 33% 18%;
     --ring: 213 27% 84%;
 
-    --sidebar-background: 222 47% 11%;
+    --sidebar-background: 222 47% 11%; /* Keep dark theme as is */
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 210 100% 50%;
     --sidebar-primary-foreground: 0 0% 100%;
