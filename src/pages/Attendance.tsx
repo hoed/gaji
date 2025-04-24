@@ -1,5 +1,5 @@
-
-import { useState } from "react";
+/* src/pages/Attendance.tsx */
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -35,59 +35,86 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Calendar, Upload, Download, Search, MoreVertical } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { Tables } from "@/integrations/supabase/types";
 
-// Mock data for attendance
-const attendanceData = [
-  {
-    id: "1",
-    date: "23 Apr 2025",
-    totalPresent: 40,
-    totalAbsent: 2,
-    totalLate: 3,
-    onLeave: 0,
-    syncStatus: "Tersinkronisasi",
-  },
-  {
-    id: "2",
-    date: "22 Apr 2025",
-    totalPresent: 38,
-    totalAbsent: 3,
-    totalLate: 4,
-    onLeave: 1,
-    syncStatus: "Tersinkronisasi",
-  },
-  {
-    id: "3",
-    date: "21 Apr 2025",
-    totalPresent: 39,
-    totalAbsent: 2,
-    totalLate: 5,
-    onLeave: 1,
-    syncStatus: "Tersinkronisasi",
-  },
-  {
-    id: "4",
-    date: "20 Apr 2025",
-    totalPresent: 40,
-    totalAbsent: 2,
-    totalLate: 2,
-    onLeave: 0,
-    syncStatus: "Tersinkronisasi",
-  },
-  {
-    id: "5",
-    date: "19 Apr 2025",
-    totalPresent: 41,
-    totalAbsent: 1,
-    totalLate: 3,
-    onLeave: 0,
-    syncStatus: "Tersinkronisasi",
-  },
-];
+// Define interface for daily summary (not a database table)
+interface DailySummary {
+  date: string;
+  totalPresent: number;
+  totalAbsent: number;
+  totalLate: number;
+  onLeave: number;
+  syncStatus: string;
+}
 
 export default function Attendance() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  
+  const [attendanceData, setAttendanceData] = useState<Tables<"attendance">[]>([]);
+  const [dailySummaries, setDailySummaries] = useState<DailySummary[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+
+  // Fetch attendance data
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        // Fetch attendance for April 2025
+        const startDate = "2025-04-01";
+        const endDate = "2025-04-30";
+        const { data: attendanceData, error: attendanceError } = await supabase
+          .from('attendance')
+          .select('*')
+          .gte('date', startDate)
+          .lte('date', endDate);
+
+        if (attendanceError) throw attendanceError;
+        setAttendanceData(attendanceData || []);
+
+        // Aggregate daily summaries
+        const summaries: DailySummary[] = [];
+        const dates = [...new Set(attendanceData.map(att => att.date))].sort().reverse();
+        dates.forEach(date => {
+          const dayRecords = attendanceData.filter(att => att.date === date);
+          const summary: DailySummary = {
+            date: new Date(date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
+            totalPresent: dayRecords.filter(att => att.status === 'present').length,
+            totalAbsent: dayRecords.filter(att => att.status === 'absent').length,
+            totalLate: dayRecords.filter(att => att.status === 'late').length,
+            onLeave: dayRecords.filter(att => att.status === 'leave').length,
+            syncStatus: "Tersinkronisasi", // Assume synced; adjust if sync status is tracked
+          };
+          summaries.push(summary);
+        });
+        setDailySummaries(summaries);
+
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        toast({
+          title: "Error",
+          description: "Gagal memuat data kehadiran.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, [toast]);
+
+  // Aggregate data for cards
+  const totalDays = dailySummaries.length;
+  const totalPresentDays = dailySummaries.reduce((sum, day) => sum + day.totalPresent, 0);
+  const totalEmployees = new Set(attendanceData.map(att => att.employee_id)).size;
+  const attendanceRate = totalEmployees > 0 && totalDays > 0
+    ? Math.round((totalPresentDays / (totalDays * totalEmployees)) * 100)
+    : 0;
+  const totalLate = dailySummaries.reduce((sum, day) => sum + day.totalLate, 0);
+  const totalAbsent = dailySummaries.reduce((sum, day) => sum + day.totalAbsent, 0);
+  const totalLeave = dailySummaries.reduce((sum, day) => sum + day.onLeave, 0);
+
   return (
     <div className="space-y-6">
       <div>
@@ -103,7 +130,7 @@ export default function Attendance() {
             <CardTitle className="text-sm font-medium">Tingkat Kehadiran</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">95%</div>
+            <div className="text-2xl font-bold">{attendanceRate}%</div>
             <p className="text-xs text-muted-foreground">Bulan April 2025</p>
           </CardContent>
         </Card>
@@ -112,7 +139,7 @@ export default function Attendance() {
             <CardTitle className="text-sm font-medium">Total Keterlambatan</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">42</div>
+            <div className="text-2xl font-bold">{totalLate}</div>
             <p className="text-xs text-muted-foreground">Bulan April 2025</p>
           </CardContent>
         </Card>
@@ -121,7 +148,7 @@ export default function Attendance() {
             <CardTitle className="text-sm font-medium">Total Absensi</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">18</div>
+            <div className="text-2xl font-bold">{totalAbsent}</div>
             <p className="text-xs text-muted-foreground">Bulan April 2025</p>
           </CardContent>
         </Card>
@@ -130,7 +157,7 @@ export default function Attendance() {
             <CardTitle className="text-sm font-medium">Total Cuti</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">5</div>
+            <div className="text-2xl font-bold">{totalLeave}</div>
             <p className="text-xs text-muted-foreground">Bulan April 2025</p>
           </CardContent>
         </Card>
@@ -187,51 +214,60 @@ export default function Attendance() {
       
       <Card>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Tanggal</TableHead>
-                <TableHead>Hadir</TableHead>
-                <TableHead>Tidak Hadir</TableHead>
-                <TableHead>Terlambat</TableHead>
-                <TableHead>Cuti</TableHead>
-                <TableHead>Status Sinkronisasi</TableHead>
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {attendanceData.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell className="font-medium">{row.date}</TableCell>
-                  <TableCell>{row.totalPresent}</TableCell>
-                  <TableCell>{row.totalAbsent}</TableCell>
-                  <TableCell>{row.totalLate}</TableCell>
-                  <TableCell>{row.onLeave}</TableCell>
-                  <TableCell>
-                    <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-                      {row.syncStatus}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Aksi</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem>Lihat Detail</DropdownMenuItem>
-                        <DropdownMenuItem>Edit Data</DropdownMenuItem>
-                        <DropdownMenuItem>Sinkronisasi Ulang</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+          {isLoading ? (
+            <div className="flex justify-center items-center py-8">
+              <svg className="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tanggal</TableHead>
+                  <TableHead>Hadir</TableHead>
+                  <TableHead>Tidak Hadir</TableHead>
+                  <TableHead>Terlambat</TableHead>
+                  <TableHead>Cuti</TableHead>
+                  <TableHead>Status Sinkronisasi</TableHead>
+                  <TableHead></TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {dailySummaries.map((row, index) => (
+                  <TableRow key={index}>
+                    <TableCell className="font-medium">{row.date}</TableCell>
+                    <TableCell>{row.totalPresent}</TableCell>
+                    <TableCell>{row.totalAbsent}</TableCell>
+                    <TableCell>{row.totalLate}</TableCell>
+                    <TableCell>{row.onLeave}</TableCell>
+                    <TableCell>
+                      <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                        {row.syncStatus}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Aksi</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem>Lihat Detail</DropdownMenuItem>
+                          <DropdownMenuItem>Edit Data</DropdownMenuItem>
+                          <DropdownMenuItem>Sinkronisasi Ulang</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>

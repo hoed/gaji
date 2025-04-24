@@ -1,4 +1,4 @@
-
+/* src/pages/Index.tsx */
 import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Eye } from "lucide-react";
@@ -8,7 +8,6 @@ const Index = () => {
   const navigate = useNavigate();
 
   const handleReviewClick = () => {
-    // Navigate to the Reports page or specific review section
     navigate('/laporan');
   };
 

@@ -1,5 +1,5 @@
-
-import { useState } from "react";
+/* src/pages/Reports.tsx */
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -18,10 +18,125 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileText, Download, PieChart, BarChart } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { Tables } from "@/integrations/supabase/types";
+
+// Define interface for department summary (not a database table)
+interface DepartmentSummary {
+  department: string;
+  totalSalary: number;
+  color: string;
+}
 
 export default function Reports() {
   const [selectedMonth, setSelectedMonth] = useState("april2025");
-  
+  const [payrollData, setPayrollData] = useState<Tables<"payroll">[]>([]);
+  const [employees, setEmployees] = useState<Tables<"employees">[]>([]);
+  const [departments, setDepartments] = useState<Tables<"departments">[]>([]);
+  const [positions, setPositions] = useState<Tables<"positions">[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+
+  // Fetch data for reports
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const startDate = selectedMonth === "april2025" ? "2025-04-01" : 
+                         selectedMonth === "maret2025" ? "2025-03-01" : "2025-02-01";
+        const endDate = selectedMonth === "april2025" ? "2025-04-30" : 
+                       selectedMonth === "maret2025" ? "2025-03-31" : "2025-02-28";
+
+        // Fetch payroll data
+        const { data: payrollData, error: payrollError } = await supabase
+          .from('payroll')
+          .select('*')
+          .gte('period_start', startDate)
+          .lte('period_end', endDate);
+        
+        if (payrollError) throw payrollError;
+        setPayrollData(payrollData || []);
+
+        // Fetch employees
+        const { data: employeesData, error: employeesError } = await supabase
+          .from('employees')
+          .select('*');
+        
+        if (employeesError) throw employeesError;
+        setEmployees(employeesData || []);
+
+        // Fetch departments
+        const { data: departmentsData, error: departmentsError } = await supabase
+          .from('departments')
+          .select('*');
+        
+        if (departmentsError) throw departmentsError;
+        setDepartments(departmentsData || []);
+
+        // Fetch positions
+        const { data: positionsData, error: positionsError } = await supabase
+          .from('positions')
+          .select('*');
+        
+        if (positionsError) throw positionsError;
+        setPositions(positionsData || []);
+
+      } catch (error) {
+        console.error('Error fetching data for reports:', error);
+        toast({
+          title: "Error",
+          description: "Gagal memuat data laporan.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, [selectedMonth, toast]);
+
+  // Aggregate data for summary
+  const totalGrossSalary = payrollData.reduce((sum, p) => sum + (p.basic_salary || 0), 0);
+  const totalPPh21 = payrollData.reduce((sum, p) => sum + (p.pph21 || 0), 0);
+  const totalBPJSKesehatan = payrollData.reduce((sum, p) => sum + 
+    (p.bpjs_kes_employee || 0) + 
+    (p.bpjs_kes_company || 0), 0);
+  const totalBPJSKetenagakerjaan = payrollData.reduce((sum, p) => sum + 
+    (p.bpjs_tk_jht_employee || 0) + 
+    (p.bpjs_tk_jht_company || 0) + 
+    (p.bpjs_tk_jp_employee || 0) + 
+    (p.bpjs_tk_jp_company || 0) + 
+    (p.bpjs_tk_jkk || 0) + 
+    (p.bpjs_tk_jkm || 0), 0);
+  const totalNetSalary = payrollData.reduce((sum, p) => sum + (p.net_salary || 0), 0);
+
+  // Aggregate data by department
+  const departmentSummaries: DepartmentSummary[] = departments.map((dep, index) => {
+    const departmentPositions = positions.filter(pos => pos.department_id === dep.id);
+    const departmentEmployees = employees.filter(emp => 
+      departmentPositions.some(pos => pos.id === emp.position_id)
+    );
+    const departmentPayroll = payrollData.filter(p => 
+      departmentEmployees.some(emp => emp.id === p.employee_id)
+    );
+    const totalSalary = departmentPayroll.reduce((sum, p) => sum + (p.basic_salary || 0), 0);
+    const colors = ['bg-blue-500', 'bg-green-500', 'bg-amber-500', 'bg-purple-500'];
+    return {
+      department: dep.name,
+      totalSalary,
+      color: colors[index % colors.length],
+    };
+  }).filter(summary => summary.totalSalary > 0);
+
+  // Handle download action
+  const handleDownloadReport = (reportType: string) => {
+    toast({
+      title: "Mengunduh laporan",
+      description: `Laporan ${reportType} sedang diunduh`,
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -48,7 +163,11 @@ export default function Reports() {
           </Select>
         </div>
         
-        <Button variant="outline" className="flex items-center gap-2">
+        <Button 
+          variant="outline" 
+          className="flex items-center gap-2"
+          onClick={() => handleDownloadReport('semua')}
+        >
           <Download size={16} />
           <span>Download Semua Laporan</span>
         </Button>
@@ -66,31 +185,53 @@ export default function Reports() {
           <div className="grid gap-4 md:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Ringkasan Penggajian</CardTitle>
-                <CardDescription>April 2025</CardDescription>
+                <CardTitle className="text-lg">
+                  Ringkasan Penggajian
+                </CardTitle>
+                <CardDescription>
+                  {selectedMonth === "april2025" ? "April 2025" : selectedMonth === "maret2025" ? "Maret 2025" : "Februari 2025"}
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center pb-2 border-b">
-                    <span className="text-muted-foreground">Total Gaji Kotor</span>
-                    <span className="font-medium">Rp 240.500.000</span>
+                {isLoading ? (
+                  <div className="flex justify-center items-center py-8">
+                    <svg className="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
                   </div>
-                  <div className="flex justify-between items-center pb-2 border-b">
-                    <span className="text-muted-foreground">Total PPh 21</span>
-                    <span className="font-medium">Rp 12.845.000</span>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center pb-2 border-b">
+                      <span className="text-muted-foreground">Total Gaji Kotor</span>
+                      <span className="font-medium">Rp {totalGrossSalary.toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-2 border-b">
+                      <span className="text-muted-foreground">Total PPh 21</span>
+                      <span className="font-medium">Rp {totalPPh21.toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-2 border-b">
+                      <span className="text-muted-foreground">Total BPJS Kesehatan</span>
+                      <span className="font-medium">Rp {totalBPJSKesehatan.toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-2 border-b">
+                      <span className="text-muted-foreground">Total BPJS Ketenagakerjaan</span>
+                      <span className="font-medium">Rp {totalBPJSKetenagakerjaan.toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-2">
+                      <span className="font-medium">Total Gaji Bersih</span>
+                      <span className="font-bold">Rp {totalNetSalary.toLocaleString('id-ID')}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center pb-2 border-b">
-                    <span className="text-muted-foreground">Total BPJS</span>
-                    <span className="font-medium">Rp 14.875.000</span>
-                  </div>
-                  <div className="flex justify-between items-center pt-2">
-                    <span className="font-medium">Total Gaji Bersih</span>
-                    <span className="font-bold">Rp 212.780.000</span>
-                  </div>
-                </div>
+                )}
               </CardContent>
               <CardFooter className="flex justify-end">
-                <Button variant="outline" size="sm" className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="flex items-center gap-2"
+                  onClick={() => handleDownloadReport('ringkasan penggajian')}
+                >
                   <Download size={14} />
                   <span>Unduh</span>
                 </Button>
@@ -109,39 +250,38 @@ export default function Reports() {
                     <p className="text-sm mt-2">Grafik departemen</p>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <div className="h-3 w-3 rounded-full bg-blue-500"></div>
-                      <span className="text-sm">Teknologi Informasi</span>
-                    </div>
-                    <span className="text-sm font-medium">Rp 80.500.000</span>
+                {isLoading ? (
+                  <div className="flex justify-center items-center py-4">
+                    <svg className="animate-spin h-6 w-6 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <div className="h-3 w-3 rounded-full bg-green-500"></div>
-                      <span className="text-sm">Human Resources</span>
-                    </div>
-                    <span className="text-sm font-medium">Rp 45.000.000</span>
+                ) : departmentSummaries.length > 0 ? (
+                  <div className="space-y-2">
+                    {departmentSummaries.map((summary, index) => (
+                      <div key={index} className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <div className={`h-3 w-3 rounded-full ${summary.color}`}></div>
+                          <span className="text-sm">{summary.department}</span>
+                        </div>
+                        <span className="text-sm font-medium">Rp {summary.totalSalary.toLocaleString('id-ID')}</span>
+                      </div>
+                    ))}
                   </div>
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <div className="h-3 w-3 rounded-full bg-amber-500"></div>
-                      <span className="text-sm">Keuangan</span>
-                    </div>
-                    <span className="text-sm font-medium">Rp 55.000.000</span>
+                ) : (
+                  <div className="text-center text-muted-foreground">
+                    <p>Tidak ada data untuk ditampilkan</p>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <div className="h-3 w-3 rounded-full bg-purple-500"></div>
-                      <span className="text-sm">Pemasaran & Operasional</span>
-                    </div>
-                    <span className="text-sm font-medium">Rp 60.000.000</span>
-                  </div>
-                </div>
+                )}
               </CardContent>
               <CardFooter className="flex justify-end">
-                <Button variant="outline" size="sm" className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="flex items-center gap-2"
+                  onClick={() => handleDownloadReport('rincian departemen')}
+                >
                   <Download size={14} />
                   <span>Unduh</span>
                 </Button>
@@ -163,7 +303,12 @@ export default function Reports() {
               </div>
             </CardContent>
             <CardFooter className="flex justify-end">
-              <Button variant="outline" size="sm" className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="flex items-center gap-2"
+                onClick={() => handleDownloadReport('tren penggajian')}
+              >
                 <Download size={14} />
                 <span>Unduh</span>
               </Button>
@@ -176,7 +321,9 @@ export default function Reports() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Laporan Penggajian Detail</CardTitle>
-                <CardDescription>April 2025</CardDescription>
+                <CardDescription>
+                  {selectedMonth === "april2025" ? "April 2025" : selectedMonth === "maret2025" ? "Maret 2025" : "Februari 2025"}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center justify-center py-8 border-2 border-dashed rounded-md">
@@ -184,7 +331,13 @@ export default function Reports() {
                     <FileText size={40} />
                     <p className="mt-2">Laporan penggajian detail</p>
                     <p className="text-sm">Berisi informasi lengkap gaji setiap karyawan</p>
-                    <Button className="mt-4" variant="outline">Download Laporan</Button>
+                    <Button 
+                      className="mt-4" 
+                      variant="outline"
+                      onClick={() => handleDownloadReport('penggajian detail')}
+                    >
+                      Download Laporan
+                    </Button>
                   </div>
                 </div>
               </CardContent>
@@ -197,7 +350,9 @@ export default function Reports() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Laporan PPh 21</CardTitle>
-                <CardDescription>April 2025</CardDescription>
+                <CardDescription>
+                  {selectedMonth === "april2025" ? "April 2025" : selectedMonth === "maret2025" ? "Maret 2025" : "Februari 2025"}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center justify-center py-8 border-2 border-dashed rounded-md">
@@ -205,7 +360,13 @@ export default function Reports() {
                     <FileText size={40} />
                     <p className="mt-2">Laporan PPh 21</p>
                     <p className="text-sm">Berisi rincian pajak penghasilan karyawan</p>
-                    <Button className="mt-4" variant="outline">Download Laporan</Button>
+                    <Button 
+                      className="mt-4" 
+                      variant="outline"
+                      onClick={() => handleDownloadReport('PPh 21')}
+                    >
+                      Download Laporan
+                    </Button>
                   </div>
                 </div>
               </CardContent>
@@ -218,35 +379,117 @@ export default function Reports() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Laporan BPJS Kesehatan</CardTitle>
-                <CardDescription>April 2025</CardDescription>
+                <CardDescription>
+                  {selectedMonth === "april2025" ? "April 2025" : selectedMonth === "maret2025" ? "Maret 2025" : "Februari 2025"}
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center justify-center py-8 border-2 border-dashed rounded-md">
-                  <div className="flex flex-col items-center text-muted-foreground">
-                    <FileText size={40} />
-                    <p className="mt-2">BPJS Kesehatan</p>
-                    <p className="text-sm">Iuran dan rincian BPJS Kesehatan</p>
-                    <Button className="mt-4" variant="outline">Download Laporan</Button>
+                {isLoading ? (
+                  <div className="flex justify-center items-center py-8">
+                    <svg className="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
                   </div>
-                </div>
+                ) : payrollData.length > 0 ? (
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center pb-2 border-b">
+                      <span className="text-muted-foreground">Total Iuran Karyawan</span>
+                      <span className="font-medium">Rp {payrollData.reduce((sum, p) => sum + (p.bpjs_kes_employee || 0), 0).toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-2 border-b">
+                      <span className="text-muted-foreground">Total Iuran Perusahaan</span>
+                      <span className="font-medium">Rp {payrollData.reduce((sum, p) => sum + (p.bpjs_kes_company || 0), 0).toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-2">
+                      <span className="font-medium">Total Iuran</span>
+                      <span className="font-bold">Rp {totalBPJSKesehatan.toLocaleString('id-ID')}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center py-8 border-2 border-dashed rounded-md">
+                    <div className="flex flex-col items-center text-muted-foreground">
+                      <FileText size={40} />
+                      <p className="mt-2">Tidak ada data BPJS Kesehatan</p>
+                      <p className="text-sm">Data iuran BPJS Kesehatan belum tersedia</p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
+              <CardFooter className="flex justify-end">
+                <Button 
+                  variant="outline" 
+                  className="flex items-center gap-2"
+                  onClick={() => handleDownloadReport('BPJS Kesehatan')}
+                >
+                  <Download size={16} />
+                  <span>Download Laporan</span>
+                </Button>
+              </CardFooter>
             </Card>
             
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Laporan BPJS Ketenagakerjaan</CardTitle>
-                <CardDescription>April 2025</CardDescription>
+                <CardDescription>
+                  {selectedMonth === "april2025" ? "April 2025" : selectedMonth === "maret2025" ? "Maret 2025" : "Februari 2025"}
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center justify-center py-8 border-2 border-dashed rounded-md">
-                  <div className="flex flex-col items-center text-muted-foreground">
-                    <FileText size={40} />
-                    <p className="mt-2">BPJS Ketenagakerjaan</p>
-                    <p className="text-sm">Iuran dan rincian BPJS Ketenagakerjaan</p>
-                    <Button className="mt-4" variant="outline">Download Laporan</Button>
+                {isLoading ? (
+                  <div className="flex justify-center items-center py-8">
+                    <svg className="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
                   </div>
-                </div>
+                ) : payrollData.length > 0 ? (
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center pb-2 border-b">
+                      <span className="text-muted-foreground">Total JHT (Karyawan)</span>
+                      <span className="font-medium">Rp {payrollData.reduce((sum, p) => sum + (p.bpjs_tk_jht_employee || 0), 0).toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-2 border-b">
+                      <span className="text-muted-foreground">Total JHT (Perusahaan)</span>
+                      <span className="font-medium">Rp {payrollData.reduce((sum, p) => sum + (p.bpjs_tk_jht_company || 0), 0).toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-2 border-b">
+                      <span className="text-muted-foreground">Total JP (Karyawan)</span>
+                      <span className="font-medium">Rp {payrollData.reduce((sum, p) => sum + (p.bpjs_tk_jp_employee || 0), 0).toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-2 border-b">
+                      <span className="text-muted-foreground">Total JP (Perusahaan)</span>
+                      <span className="font-medium">Rp {payrollData.reduce((sum, p) => sum + (p.bpjs_tk_jp_company || 0), 0).toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-2 border-b">
+                      <span className="text-muted-foreground">Total JKK & JKM</span>
+                      <span className="font-medium">Rp {(payrollData.reduce((sum, p) => sum + (p.bpjs_tk_jkk || 0) + (p.bpjs_tk_jkm || 0), 0)).toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-2">
+                      <span className="font-medium">Total Iuran</span>
+                      <span className="font-bold">Rp {totalBPJSKetenagakerjaan.toLocaleString('id-ID')}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center py-8 border-2 border-dashed rounded-md">
+                    <div className="flex flex-col items-center text-muted-foreground">
+                      <FileText size={40} />
+                      <p className="mt-2">Tidak ada data BPJS Ketenagakerjaan</p>
+                      <p className="text-sm">Data iuran BPJS Ketenagakerjaan belum tersedia</p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
+              <CardFooter className="flex justify-end">
+                <Button 
+                  variant="outline" 
+                  className="flex items-center gap-2"
+                  onClick={() => handleDownloadReport('BPJS Ketenagakerjaan')}
+                >
+                  <Download size={16} />
+                  <span>Download Laporan</span>
+                </Button>
+              </CardFooter>
             </Card>
           </div>
         </TabsContent>

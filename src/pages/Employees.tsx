@@ -1,5 +1,5 @@
-
-import { useState } from "react";
+/* src/pages/Employees.tsx */
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -29,69 +29,61 @@ import {
 } from "@/components/ui/dialog";
 import { Search, Plus, MoreVertical } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { Tables } from "@/integrations/supabase/types";
 
-// Mock data for employees
-const mockEmployees = [
-  {
-    id: "1",
-    name: "Budi Santoso",
-    position: "Senior Developer",
-    department: "Teknologi Informasi",
-    employeeId: "EMP001",
-    joinDate: "12 Jan 2023",
-    salary: "Rp 12.000.000",
-    status: "Aktif",
-  },
-  {
-    id: "2",
-    name: "Siti Nurhaliza",
-    position: "HR Manager",
-    department: "Human Resources",
-    employeeId: "EMP002",
-    joinDate: "05 Mar 2022",
-    salary: "Rp 15.000.000",
-    status: "Aktif",
-  },
-  {
-    id: "3",
-    name: "Ahmad Dhani",
-    position: "Finance Officer",
-    department: "Keuangan",
-    employeeId: "EMP003",
-    joinDate: "17 Jun 2023",
-    salary: "Rp 8.000.000",
-    status: "Aktif",
-  },
-  {
-    id: "4",
-    name: "Dewi Kartika",
-    position: "Marketing Specialist",
-    department: "Pemasaran",
-    employeeId: "EMP004",
-    joinDate: "23 Sep 2022",
-    salary: "Rp 9.500.000",
-    status: "Aktif",
-  },
-  {
-    id: "5",
-    name: "Joko Widodo",
-    position: "Operations Manager",
-    department: "Operasional",
-    employeeId: "EMP005",
-    joinDate: "08 Nov 2021",
-    salary: "Rp 18.000.000",
-    status: "Aktif",
-  },
-];
+// Define interface for enriched employee (not a database table)
+interface EnrichedEmployee extends Tables<"employees"> {
+  position: string;
+  department: string;
+}
 
 export default function Employees() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [employees, setEmployees] = useState<EnrichedEmployee[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
 
-  const filteredEmployees = mockEmployees.filter(
+  // Fetch employees data
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('employees')
+          .select(`
+            *,
+            positions (title, department_id, departments (name))
+          `);
+        if (error) throw error;
+
+        const enrichedData: EnrichedEmployee[] = data.map(emp => ({
+          ...emp,
+          position: emp.positions?.title || 'Unknown',
+          department: emp.positions?.departments?.name || 'Unknown',
+        }));
+        setEmployees(enrichedData);
+      } catch (error) {
+        console.error('Error fetching employees:', error);
+        toast({
+          title: "Error",
+          description: "Gagal memuat data karyawan.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchEmployees();
+  }, [toast]);
+
+  const filteredEmployees = employees.filter(
     (employee) =>
-      employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      employee.employeeId.toLowerCase().includes(searchTerm.toLowerCase())
+      employee.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (employee.last_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (employee.nik || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -130,44 +122,44 @@ export default function Employees() {
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
-                  <label htmlFor="name" className="text-sm font-medium">
-                    Nama Lengkap
+                  <label htmlFor="firstName" className="text-sm font-medium">
+                    Nama Depan
                   </label>
-                  <Input id="name" placeholder="Nama lengkap karyawan" />
+                  <Input id="firstName" placeholder="Nama depan karyawan" />
                 </div>
                 <div className="grid gap-2">
-                  <label htmlFor="employeeId" className="text-sm font-medium">
-                    ID Karyawan
+                  <label htmlFor="lastName" className="text-sm font-medium">
+                    Nama Belakang
                   </label>
-                  <Input id="employeeId" placeholder="EMP001" />
+                  <Input id="lastName" placeholder="Nama belakang karyawan" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <label htmlFor="nik" className="text-sm font-medium">
+                    NIK
+                  </label>
+                  <Input id="nik" placeholder="Nomor Induk Karyawan" />
+                </div>
                 <div className="grid gap-2">
                   <label htmlFor="position" className="text-sm font-medium">
                     Jabatan
                   </label>
                   <Input id="position" placeholder="Jabatan karyawan" />
                 </div>
-                <div className="grid gap-2">
-                  <label htmlFor="department" className="text-sm font-medium">
-                    Departemen
-                  </label>
-                  <Input id="department" placeholder="Departemen karyawan" />
-                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
-                  <label htmlFor="salary" className="text-sm font-medium">
+                  <label htmlFor="basicSalary" className="text-sm font-medium">
                     Gaji Pokok
                   </label>
-                  <Input id="salary" placeholder="10000000" />
+                  <Input id="basicSalary" placeholder="10000000" type="number" />
                 </div>
                 <div className="grid gap-2">
-                  <label htmlFor="joinDate" className="text-sm font-medium">
+                  <label htmlFor="hireDate" className="text-sm font-medium">
                     Tanggal Bergabung
                   </label>
-                  <Input id="joinDate" type="date" />
+                  <Input id="hireDate" type="date" />
                 </div>
               </div>
             </div>
@@ -186,55 +178,64 @@ export default function Employees() {
           <CardTitle className="text-md">Daftar Karyawan</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nama</TableHead>
-                <TableHead>ID</TableHead>
-                <TableHead>Jabatan</TableHead>
-                <TableHead>Departemen</TableHead>
-                <TableHead>Tgl Bergabung</TableHead>
-                <TableHead>Gaji Pokok</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredEmployees.map((employee) => (
-                <TableRow key={employee.id}>
-                  <TableCell className="font-medium">{employee.name}</TableCell>
-                  <TableCell>{employee.employeeId}</TableCell>
-                  <TableCell>{employee.position}</TableCell>
-                  <TableCell>{employee.department}</TableCell>
-                  <TableCell>{employee.joinDate}</TableCell>
-                  <TableCell>{employee.salary}</TableCell>
-                  <TableCell>
-                    <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-                      {employee.status}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Aksi</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem>Lihat Detail</DropdownMenuItem>
-                        <DropdownMenuItem>Edit Data</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive">
-                          Nonaktifkan
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+          {isLoading ? (
+            <div className="flex justify-center items-center py-8">
+              <svg className="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nama</TableHead>
+                  <TableHead>NIK</TableHead>
+                  <TableHead>Jabatan</TableHead>
+                  <TableHead>Departemen</TableHead>
+                  <TableHead>Tgl Bergabung</TableHead>
+                  <TableHead>Gaji Pokok</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead></TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredEmployees.map((employee) => (
+                  <TableRow key={employee.id}>
+                    <TableCell className="font-medium">{`${employee.first_name} ${employee.last_name || ''}`.trim()}</TableCell>
+                    <TableCell>{employee.nik || '-'}</TableCell>
+                    <TableCell>{employee.position}</TableCell>
+                    <TableCell>{employee.department}</TableCell>
+                    <TableCell>{new Date(employee.hire_date).toLocaleDateString('id-ID')}</TableCell>
+                    <TableCell>Rp {(employee.basic_salary || 0).toLocaleString('id-ID')}</TableCell>
+                    <TableCell>
+                      <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                        Aktif
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Aksi</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem>Lihat Detail</DropdownMenuItem>
+                          <DropdownMenuItem>Edit Data</DropdownMenuItem>
+                          <DropdownMenuItem className="text-destructive">
+                            Nonaktifkan
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>
