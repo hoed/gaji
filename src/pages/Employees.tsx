@@ -51,7 +51,21 @@ export default function Employees() {
   });
 
   useEffect(() => {
-    fetchEmployees();
+    // Check if the user is authenticated
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        // If not authenticated, redirect to login or handle accordingly
+        toast.error("Silakan login untuk mengakses data karyawan.");
+        // Optionally redirect to login page
+        // window.location.href = "/login";
+        setIsLoading(false);
+        return;
+      }
+      fetchEmployees();
+    };
+
+    checkSession();
   }, []);
 
   const fetchEmployees = async () => {
@@ -62,11 +76,14 @@ export default function Employees() {
         .select("*, payroll(*)")
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase query error:", error);
+        throw new Error(`Failed to fetch employees: ${error.message}`);
+      }
       setEmployees(data || []);
-    } catch (error) {
-      console.error("Error fetching employees:", error);
-      toast.error("Gagal memuat data karyawan.");
+    } catch (error: any) {
+      console.error("Error fetching employees:", error.message, error);
+      toast.error(`Gagal memuat data karyawan: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -121,9 +138,9 @@ export default function Employees() {
         birth_date: "",
         hire_date: "",
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving employee:", error);
-      toast.error("Gagal menyimpan data karyawan.");
+      toast.error(`Gagal menyimpan data karyawan: ${error.message}`);
     }
   };
 
@@ -150,9 +167,9 @@ export default function Employees() {
       if (error) throw error;
       toast.success("Karyawan berhasil dihapus");
       await fetchEmployees();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting employee:", error);
-      toast.error("Gagal menghapus karyawan.");
+      toast.error(`Gagal menghapus karyawan: ${error.message}`);
     }
   };
 
