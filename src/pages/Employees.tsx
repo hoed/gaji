@@ -55,10 +55,7 @@ export default function Employees() {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        // If not authenticated, redirect to login or handle accordingly
         toast.error("Silakan login untuk mengakses data karyawan.");
-        // Optionally redirect to login page
-        // window.location.href = "/login";
         setIsLoading(false);
         return;
       }
@@ -71,16 +68,34 @@ export default function Employees() {
   const fetchEmployees = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
+      // Fetch employees and their payroll records using an explicit join
+      const { data: employeesData, error: employeesError } = await supabase
         .from("employees")
-        .select("*, payroll(*)")
+        .select("*")
         .order("created_at", { ascending: false });
 
-      if (error) {
-        console.error("Supabase query error:", error);
-        throw new Error(`Failed to fetch employees: ${error.message}`);
+      if (employeesError) {
+        console.error("Supabase query error (employees):", employeesError);
+        throw new Error(`Failed to fetch employees: ${employeesError.message}`);
       }
-      setEmployees(data || []);
+
+      // Fetch payroll records separately
+      const { data: payrollData, error: payrollError } = await supabase
+        .from("payroll")
+        .select("*");
+
+      if (payrollError) {
+        console.error("Supabase query error (payroll):", payrollError);
+        throw new Error(`Failed to fetch payroll: ${payrollError.message}`);
+      }
+
+      // Manually combine the data
+      const combinedData = employeesData.map(employee => ({
+        ...employee,
+        payroll: payrollData.filter(payroll => payroll.employee_id === employee.id),
+      }));
+
+      setEmployees(combinedData || []);
     } catch (error: any) {
       console.error("Error fetching employees:", error.message, error);
       toast.error(`Gagal memuat data karyawan: ${error.message}`);
