@@ -59,7 +59,6 @@ interface EmployeeData {
 export default function Payroll() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [payrollData, setPayrollData] = useState<EnrichedPayroll[]>([]);
- едель
 
   const [employees, setEmployees] = useState<EmployeeData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -684,7 +683,7 @@ export default function Payroll() {
                     onChange={(e) => setPaymentDate(e.target.value)}
                   />
                 </div>
-                <div className "grid gap-2">
+                <div className="grid gap-2">
                   <Label htmlFor="employee">Nama Karyawan</Label>
                   <Select
                     value={selectedEmployeeId}
@@ -926,12 +925,12 @@ export default function Payroll() {
                   r="10"
                   stroke="currentColor"
                   strokeWidth="4"
-                ></circle>
+                />
                 <path
                   className="opacity-75"
                   fill="currentColor"
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                ></path>
+                />
               </svg>
             </div>
           ) : (
@@ -945,7 +944,7 @@ export default function Payroll() {
                   <TableHead>PPh 21</TableHead>
                   <TableHead>BPJS</TableHead>
                   <TableHead>Gaji Bersih</TableHead>
-                  <TableHead></TableHead>
+                  <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -987,11 +986,11 @@ export default function Payroll() {
                       </TableCell>
                       <TableCell>
                         <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          className={
                             row.payment_status === "paid"
-                              ? "bg-green-100 text-green-800"
-                              : "bg-amber-100 text-amber-800"
-                          }`}
+                              ? "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-green-100 text-green-800"
+                              : "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-800"
+                          }
                         >
                           {row.payment_status === "paid" ? "Selesai" : "Belum Diproses"}
                         </span>
