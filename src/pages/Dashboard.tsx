@@ -338,9 +338,6 @@ export default function Dashboard() {
             </ResponsiveContainer>
           </CardContent>
         </Card>
-        <div className="text-left mt-4 text-sm text-black">
-          © 2025 Hoed - Payroll System. All rights reserved.
-        </div>
       </div>
     </div>
   );

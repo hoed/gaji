@@ -1,57 +1,29 @@
 /* src/pages/Employees.tsx */
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Tables } from "@/integrations/supabase/types";
-import { FileText, Plus, Pencil, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { FileText, Pencil, Trash2 } from "lucide-react";
+import AddEmployeeDialog from "@/pages/AddEmployeeDialog"; // Correct import from /src/pages
 
-interface Employee extends Tables<"employees"> {
-  payroll?: Tables<"payroll">[];
+// Define interface for joined employee data
+interface EmployeeWithRelations extends Tables<"employees"> {
+  departments: Tables<"departments"> | null;
+  positions: Tables<"positions"> | null;
+  payroll?: Tables<"payroll"> | null; // Latest payroll record
 }
 
 export default function Employees() {
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employees, setEmployees] = useState<EmployeeWithRelations[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [openDialog, setOpenDialog] = useState(false);
-  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
-  const [formData, setFormData] = useState({
-    first_name: "",
-    last_name: "",
-    email: "",
-    phone: "",
-    birth_date: "",
-    hire_date: "",
-  });
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<EmployeeWithRelations | null>(null);
 
   useEffect(() => {
-    // Check if the user is authenticated
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -61,17 +33,16 @@ export default function Employees() {
       }
       fetchEmployees();
     };
-
     checkSession();
   }, []);
 
   const fetchEmployees = async () => {
     setIsLoading(true);
     try {
-      // Fetch employees and their payroll records using an explicit join
+      // Fetch employees with department and position
       const { data: employeesData, error: employeesError } = await supabase
         .from("employees")
-        .select("*")
+        .select("*, departments(name), positions(name)")
         .order("created_at", { ascending: false });
 
       if (employeesError) {
@@ -79,23 +50,26 @@ export default function Employees() {
         throw new Error(`Failed to fetch employees: ${employeesError.message}`);
       }
 
-      // Fetch payroll records separately
+      // Fetch the latest payroll for each employee
+      const employeeIds = employeesData.map((emp: EmployeeWithRelations) => emp.id);
       const { data: payrollData, error: payrollError } = await supabase
         .from("payroll")
-        .select("*");
+        .select("*")
+        .in("employee_id", employeeIds)
+        .order("period_end", { ascending: false });
 
       if (payrollError) {
         console.error("Supabase query error (payroll):", payrollError);
         throw new Error(`Failed to fetch payroll: ${payrollError.message}`);
       }
 
-      // Manually combine the data
-      const combinedData = employeesData.map(employee => ({
-        ...employee,
-        payroll: payrollData.filter(payroll => payroll.employee_id === employee.id),
-      }));
+      // Combine employee data with latest payroll
+      const employeesWithPayroll = employeesData.map((emp: EmployeeWithRelations) => {
+        const latestPayroll = payrollData.find((pay: Tables<"payroll">) => pay.employee_id === emp.id);
+        return { ...emp, payroll: latestPayroll || null };
+      });
 
-      setEmployees(combinedData || []);
+      setEmployees(employeesWithPayroll || []);
     } catch (error: any) {
       console.error("Error fetching employees:", error.message, error);
       toast.error(`Gagal memuat data karyawan: ${error.message}`);
@@ -104,76 +78,9 @@ export default function Employees() {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async () => {
-    try {
-      if (editingEmployee) {
-        // Update existing employee
-        const { error } = await supabase
-          .from("employees")
-          .update({
-            first_name: formData.first_name,
-            last_name: formData.last_name,
-            email: formData.email,
-            phone: formData.phone,
-            birth_date: formData.birth_date || null,
-            hire_date: formData.hire_date,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", editingEmployee.id);
-
-        if (error) throw error;
-        toast.success("Karyawan berhasil diperbarui");
-      } else {
-        // Add new employee
-        const { error } = await supabase.from("employees").insert({
-          first_name: formData.first_name,
-          last_name: formData.last_name,
-          email: formData.email,
-          phone: formData.phone,
-          birth_date: formData.birth_date || null,
-          hire_date: formData.hire_date,
-        });
-
-        if (error) throw error;
-        toast.success("Karyawan berhasil ditambahkan");
-      }
-      await fetchEmployees();
-      setOpenDialog(false);
-      setEditingEmployee(null);
-      setFormData({
-        first_name: "",
-        last_name: "",
-        email: "",
-        phone: "",
-        birth_date: "",
-        hire_date: "",
-      });
-    } catch (error: any) {
-      console.error("Error saving employee:", error);
-      toast.error(`Gagal menyimpan data karyawan: ${error.message}`);
-    }
-  };
-
-  const handleEdit = (employee: Employee) => {
+  const handleEdit = (employee: EmployeeWithRelations) => {
     setEditingEmployee(employee);
-    setFormData({
-      first_name: employee.first_name,
-      last_name: employee.last_name || "",
-      email: employee.email || "",
-      phone: employee.phone || "",
-      birth_date: employee.birth_date
-        ? new Date(employee.birth_date).toISOString().split("T")[0]
-        : "",
-      hire_date: employee.hire_date
-        ? new Date(employee.hire_date).toISOString().split("T")[0]
-        : "",
-    });
-    setOpenDialog(true);
+    setIsEditDialogOpen(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -190,117 +97,14 @@ export default function Employees() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Karyawan</h1>
-        <p className="text-muted-foreground">
-          Kelola data karyawan dan penggajian
-        </p>
-      </div>
-
-      <div className="flex justify-end">
-        <Dialog open={openDialog} onOpenChange={setOpenDialog}>
-          <DialogTrigger asChild>
-            <Button className="flex items-center gap-2">
-              <Plus size={16} />
-              <span>Tambah Karyawan</span>
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px] z-50">
-            <DialogHeader>
-              <DialogTitle>
-                {editingEmployee ? "Edit Karyawan" : "Tambah Karyawan"}
-              </DialogTitle>
-              <DialogDescription>
-                {editingEmployee
-                  ? "Perbarui informasi karyawan di bawah ini."
-                  : "Masukkan informasi karyawan baru di bawah ini."}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="first_name">Nama Depan</Label>
-                <Input
-                  id="first_name"
-                  name="first_name"
-                  value={formData.first_name}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="last_name">Nama Belakang</Label>
-                <Input
-                  id="last_name"
-                  name="last_name"
-                  value={formData.last_name}
-                  onChange={handleInputChange}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="phone">Telepon</Label>
-                <Input
-                  id="phone"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleInputChange}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="birth_date">Tanggal Lahir</Label>
-                <Input
-                  id="birth_date"
-                  name="birth_date"
-                  type="date"
-                  value={formData.birth_date}
-                  onChange={handleInputChange}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="hire_date">Tanggal Mulai Kerja</Label>
-                <Input
-                  id="hire_date"
-                  name="hire_date"
-                  type="date"
-                  value={formData.hire_date}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setOpenDialog(false);
-                  setEditingEmployee(null);
-                  setFormData({
-                    first_name: "",
-                    last_name: "",
-                    email: "",
-                    phone: "",
-                    birth_date: "",
-                    hire_date: "",
-                  });
-                }}
-              >
-                Batal
-              </Button>
-              <Button onClick={handleSubmit}>
-                {editingEmployee ? "Perbarui" : "Tambah"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold">Karyawan</h1>
+          <p className="text-muted-foreground">Kelola data karyawan dan penggajian</p>
+        </div>
+        <Button onClick={() => setIsAddDialogOpen(true)} className="flex items-center gap-2">
+          <span>Tambah Karyawan</span>
+        </Button>
       </div>
 
       <Card>
@@ -340,8 +144,17 @@ export default function Employees() {
                     <TableHead>Nama</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Telepon</TableHead>
+                    <TableHead>Tanggal Lahir</TableHead>
                     <TableHead>Tanggal Mulai</TableHead>
-                    <TableHead>Total Penggajian</TableHead>
+                    <TableHead>Departemen</TableHead>
+                    <TableHead>Posisi</TableHead>
+                    <TableHead>BPJS</TableHead>
+                    <TableHead>NPWP</TableHead>
+                    <TableHead>Gaji Pokok</TableHead>
+                    <TableHead>Insentif</TableHead>
+                    <TableHead>Biaya Transportasi</TableHead>
+                    <TableHead>Nama Bank</TableHead>
+                    <TableHead>Nomor Rekening</TableHead>
                     <TableHead>Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -349,24 +162,44 @@ export default function Employees() {
                   {employees.map((employee) => (
                     <TableRow key={employee.id}>
                       <TableCell className="font-medium">
-                        {employee.first_name} {employee.last_name}
+                        {`${employee.first_name} ${employee.last_name || ""}`}
                       </TableCell>
                       <TableCell>{employee.email || "N/A"}</TableCell>
                       <TableCell>{employee.phone || "N/A"}</TableCell>
                       <TableCell>
-                        {new Date(employee.hire_date).toLocaleDateString(
-                          "id-ID"
-                        )}
+                        {employee.birth_date
+                          ? new Date(employee.birth_date).toLocaleDateString("id-ID")
+                          : "N/A"}
                       </TableCell>
                       <TableCell>
-                        Rp{" "}
-                        {employee.payroll
-                          ?.reduce(
-                            (sum, p) => sum + (p.net_salary || 0),
-                            0
-                          )
-                          .toLocaleString("id-ID") || 0}
+                        {employee.hire_date
+                          ? new Date(employee.hire_date).toLocaleDateString("id-ID")
+                          : "N/A"}
                       </TableCell>
+                      <TableCell>{employee.departments?.name || "Unknown"}</TableCell>
+                      <TableCell>{employee.positions?.name || "Unknown"}</TableCell>
+                      <TableCell>{employee.id}-BPJS</TableCell> {/* Mock BPJS Account */}
+                      <TableCell>{employee.id}-NPWP</TableCell> {/* Mock NPWP Account */}
+                      <TableCell>
+                        {employee.payroll?.basic_salary?.toLocaleString("id-ID", {
+                          style: "currency",
+                          currency: "IDR",
+                        }) || "N/A"}
+                      </TableCell>
+                      <TableCell>
+                        {(employee.payroll?.allowances || 0).toLocaleString("id-ID", {
+                          style: "currency",
+                          currency: "IDR",
+                        })}
+                      </TableCell>
+                      <TableCell>
+                        {(employee.payroll?.allowances || 0).toLocaleString("id-ID", {
+                          style: "currency",
+                          currency: "IDR",
+                        })}
+                      </TableCell>
+                      <TableCell>{employee.bank_name || "N/A"}</TableCell>
+                      <TableCell>{employee.bank_account || "N/A"}</TableCell>
                       <TableCell>
                         <div className="flex gap-2">
                           <Button
@@ -395,14 +228,33 @@ export default function Employees() {
               <div className="flex flex-col items-center text-muted-foreground">
                 <FileText size={40} />
                 <p className="mt-2">Tidak ada data karyawan</p>
-                <p className="text-sm">
-                  Tambahkan karyawan baru untuk memulai
-                </p>
+                <p className="text-sm">Tambahkan karyawan baru untuk memulai</p>
               </div>
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Add Employee Dialog */}
+      <AddEmployeeDialog
+        open={isAddDialogOpen}
+        onOpenChange={setIsAddDialogOpen}
+        onSuccess={fetchEmployees}
+      />
+
+      {/* Edit Employee Dialog */}
+      {editingEmployee && (
+        <AddEmployeeDialog
+          open={isEditDialogOpen}
+          onOpenChange={(open) => {
+            setIsEditDialogOpen(open);
+            if (!open) setEditingEmployee(null);
+          }}
+          onSuccess={fetchEmployees}
+          employee={editingEmployee}
+          isEditMode
+        />
+      )}
     </div>
   );
 }
