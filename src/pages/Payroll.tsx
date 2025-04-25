@@ -32,7 +32,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Calculator, FileSpreadsheet, Calendar, ArrowRight } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Calculator, FileSpreadsheet, Calendar, ArrowRight, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
@@ -584,6 +590,110 @@ export default function Payroll() {
     }
   };
 
+  // Handle import from Excel
+  const handleImportFromExcel = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      const file = event.target.files?.[0];
+      if (!file) {
+        toast({
+          title: "Error",
+          description: "Silakan pilih file Excel untuk diimpor.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Dynamically import XLSX
+      const XLSX = await import("xlsx");
+
+      // Read the file
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const data = e.target?.result;
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+        // Map the imported data to the payroll table structure
+        const payrollRecords: TablesInsert<"payroll">[] = jsonData.map((row: any) => {
+          // Parse the period to determine period_start and period_end
+          let periodStart: string, periodEnd: string;
+          const period = row["Periode"];
+          if (period === "April 2025") {
+            periodStart = "2025-04-01";
+            periodEnd = "2025-04-30";
+          } else if (period === "Mei 2025") {
+            periodStart = "2025-05-01";
+            periodEnd = "2025-05-31";
+          } else {
+            throw new Error(`Periode tidak valid: ${period}`);
+          }
+
+          // Find employee ID based on full_name
+          const employee = employees.find(emp => emp.full_name === row["Nama"]);
+          if (!employee) {
+            throw new Error(`Karyawan tidak ditemukan: ${row["Nama"]}`);
+          }
+
+          // Parse currency fields (remove "Rp " and commas)
+          const parseCurrency = (value: string) => {
+            if (!value) return 0;
+            return Number(value.replace("Rp ", "").replace(/,/g, ""));
+          };
+
+          // Determine payment status
+          const paymentStatus = row["Status"] === "Selesai" ? "success" : "pending";
+
+          return {
+            employee_id: employee.id,
+            period_start: periodStart,
+            period_end: periodEnd,
+            basic_salary: employee.basic_salary ?? 0,
+            allowances: (employee.incentive ?? 0) + (employee.transportation_fee ?? 0),
+            bpjs_kes_employee: employee.basic_salary ? employee.basic_salary * 0.01 : 0,
+            bpjs_kes_company: employee.basic_salary ? employee.basic_salary * 0.04 : 0,
+            bpjs_tk_jht_employee: employee.basic_salary ? employee.basic_salary * 0.02 : 0,
+            bpjs_tk_jht_company: employee.basic_salary ? employee.basic_salary * 0.037 : 0,
+            bpjs_tk_jkk: employee.basic_salary ? employee.basic_salary * 0.0024 : 0,
+            bpjs_tk_jkm: employee.basic_salary ? employee.basic_salary * 0.003 : 0,
+            bpjs_tk_jp_employee: employee.basic_salary ? employee.basic_salary * 0.01 : 0,
+            bpjs_tk_jp_company: employee.basic_salary ? employee.basic_salary * 0.02 : 0,
+            pph21: parseCurrency(row["PPh 21"]),
+            net_salary: parseCurrency(row["Gaji Bersih"]),
+            payment_status: paymentStatus,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+        });
+
+        // Insert records into the payroll table
+        const { error: insertError } = await supabase
+          .from("payroll")
+          .insert(payrollRecords);
+
+        if (insertError) throw insertError;
+
+        // Refresh payroll data to reflect the new entries
+        await refreshPayrollData();
+
+        toast({
+          title: "Sukses",
+          description: "Data penggajian berhasil diimpor dari Excel.",
+          variant: "default",
+        });
+      };
+      reader.readAsArrayBuffer(file);
+    } catch (error: any) {
+      console.error("Error importing from Excel:", error);
+      toast({
+        title: "Error",
+        description: `Gagal mengimpor data dari Excel: ${error.message}`,
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -865,14 +975,30 @@ export default function Payroll() {
             <span>Sinkronisasi Kalender</span>
           </Button>
 
-          <Button
-            variant="outline"
-            className="flex items-center gap-2"
-            onClick={handleExportToExcel}
-          >
-            <FileSpreadsheet size={16} />
-            <span>Ekspor ke Excel</span>
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="flex items-center gap-2">
+                <FileSpreadsheet size={16} />
+                <span>Ekspor/Impor</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={handleExportToExcel}>
+                Ekspor ke Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="file"
+                    accept=".xlsx"
+                    onChange={handleImportFromExcel}
+                    className="hidden"
+                  />
+                  Impor dari Excel
+                </label>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
