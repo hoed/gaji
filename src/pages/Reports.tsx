@@ -1,3 +1,4 @@
+/* src/pages/Reports.tsx */
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,7 +37,15 @@ import {
   ChartLegend,
   ChartLegendContent
 } from "@/components/ui/chart";
-import { Line, Pie } from "recharts";
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Pie, 
+  Cell 
+} from "recharts";
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 
@@ -48,14 +57,25 @@ interface DepartmentSummary {
   color: string;
 }
 
+// Define interface for enriched payroll data (not a database table)
+interface EnrichedPayroll extends Tables<"payroll"> {
+  full_name: string;
+  position: string;
+  department: string;
+  bank_name: string;
+  bank_account: string;
+  bpjs_kesehatan_total: number;
+  bpjs_ketenagakerjaan_total: number;
+}
+
 export default function Reports() {
   const [selectedMonth, setSelectedMonth] = useState("april2025");
-  const [payrollData, setPayrollData] = useState<any[]>([]);
+  const [payrollData, setPayrollData] = useState<EnrichedPayroll[]>([]);
   const [employees, setEmployees] = useState<Tables<"employees">[]>([]);
   const [departments, setDepartments] = useState<Tables<"departments">[]>([]);
   const [positions, setPositions] = useState<Tables<"positions">[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [trendData, setTrendData] = useState<{month: string; value: number}[]>([]);
+  const [trendData, setTrendData] = useState<{ month: string; value: number }[]>([]);
 
   // Fetch data for reports
   useEffect(() => {
@@ -67,20 +87,10 @@ export default function Reports() {
         const endDate = selectedMonth === "april2025" ? "2025-04-30" : 
                        selectedMonth === "maret2025" ? "2025-03-31" : "2025-02-28";
 
-        // Fetch payroll data with join to include bank details
-        const { data: payrollData, error: payrollError } = await supabase
-          .from('payroll_summary') // Use the updated view that includes bank details
-          .select('*')
-          .gte('period_start', startDate)
-          .lte('period_end', endDate);
-        
-        if (payrollError) throw payrollError;
-        setPayrollData(payrollData || []);
-
         // Fetch employees
         const { data: employeesData, error: employeesError } = await supabase
           .from('employees')
-          .select('*');
+          .select('*, positions (id, title, department_id, departments (id, name))');
         
         if (employeesError) throw employeesError;
         setEmployees(employeesData || []);
@@ -100,6 +110,44 @@ export default function Reports() {
         
         if (positionsError) throw positionsError;
         setPositions(positionsData || []);
+
+        // Fetch payroll data
+        const { data: payrollRawData, error: payrollError } = await supabase
+          .from('payroll')
+          .select('*')
+          .gte('period_start', startDate)
+          .lte('period_end', endDate);
+        
+        if (payrollError) throw payrollError;
+
+        // Enrich payroll data with employee details (name, position, department, bank details)
+        const enrichedPayrollData: EnrichedPayroll[] = payrollRawData.map(payroll => {
+          const employee = employeesData.find(emp => emp.id === payroll.employee_id);
+          const position = positionsData.find(pos => pos.id === employee?.position_id);
+          const department = departmentsData.find(dep => dep.id === position?.department_id);
+          
+          const bpjs_kesehatan_total = 
+            (payroll.bpjs_kes_employee || 0) + (payroll.bpjs_kes_company || 0);
+          const bpjs_ketenagakerjaan_total = 
+            (payroll.bpjs_tk_jht_employee || 0) + 
+            (payroll.bpjs_tk_jp_employee || 0) + 
+            (payroll.bpjs_tk_jht_company || 0) + 
+            (payroll.bpjs_tk_jp_company || 0) + 
+            (payroll.bpjs_tk_jkk || 0) + 
+            (payroll.bpjs_tk_jkm || 0);
+
+          return {
+            ...payroll,
+            full_name: employee ? `${employee.first_name} ${employee.last_name || ''}`.trim() : 'Unknown',
+            position: position?.title || 'N/A',
+            department: department?.name || 'N/A',
+            bank_name: employee?.bank_name || 'N/A',
+            bank_account: employee?.bank_account || 'N/A',
+            bpjs_kesehatan_total,
+            bpjs_ketenagakerjaan_total
+          };
+        });
+        setPayrollData(enrichedPayrollData);
 
         // Fetch trend data (last 6 months of payroll)
         const sixMonthsAgo = new Date();
@@ -141,10 +189,8 @@ export default function Reports() {
   // Aggregate data for summary
   const totalGrossSalary = payrollData.reduce((sum, p) => sum + (p.basic_salary || 0), 0);
   const totalPPh21 = payrollData.reduce((sum, p) => sum + (p.pph21 || 0), 0);
-  const totalBPJSKesehatan = payrollData.reduce((sum, p) => sum + 
-    (p.bpjs_kesehatan_total || 0), 0);
-  const totalBPJSKetenagakerjaan = payrollData.reduce((sum, p) => sum + 
-    (p.bpjs_ketenagakerjaan_total || 0), 0);
+  const totalBPJSKesehatan = payrollData.reduce((sum, p) => sum + (p.bpjs_kesehatan_total || 0), 0);
+  const totalBPJSKetenagakerjaan = payrollData.reduce((sum, p) => sum + (p.bpjs_ketenagakerjaan_total || 0), 0);
   const totalNetSalary = payrollData.reduce((sum, p) => sum + (p.net_salary || 0), 0);
 
   // Aggregate data by department
@@ -170,7 +216,7 @@ export default function Reports() {
   const departmentChartData = departmentSummaries.map(dep => ({
     name: dep.department,
     value: dep.totalSalary,
-    color: dep.color
+    fill: dep.color
   }));
 
   const departmentChartConfig = departmentSummaries.reduce((config, dep) => {
@@ -279,8 +325,8 @@ export default function Reports() {
       const wb = XLSX.utils.book_new();
       
       // Payroll data
-      const payrollData = preparePayrollData();
-      const payrollWs = XLSX.utils.json_to_sheet(payrollData);
+      const payrollDataExport = preparePayrollData();
+      const payrollWs = XLSX.utils.json_to_sheet(payrollDataExport);
       XLSX.utils.book_append_sheet(wb, payrollWs, "Penggajian");
       
       // Tax data
@@ -349,7 +395,6 @@ export default function Reports() {
           <TabsTrigger value="tax">Pajak</TabsTrigger>
           <TabsTrigger value="bpjs">BPJS</TabsTrigger>
         </TabsList>
-        </Tabs>
         
         <TabsContent value="summary" className="mt-6">
           <div className="grid gap-4 md:grid-cols-2">
@@ -429,29 +474,22 @@ export default function Reports() {
                         config={departmentChartConfig}
                         className="h-full"
                       >
-                        <>
-                          <Pie 
-                            data={departmentChartData}
-                            dataKey="value"
-                            nameKey="name"
-                            cx="50%"
-                            cy="50%"
-                            outerRadius={60}
-                            fill="#8884d8"
-                            stroke="#fff"
-                            strokeWidth={2}
-                          >
-                            {departmentChartData.map((entry, index) => (
-                              <Pie 
-                                key={`cell-${index}`} 
-                                dataKey="value"
-                                fill={entry.color} 
-                              />
-                            ))}
-                          </Pie>
-                          <ChartTooltip content={<ChartTooltipContent />} />
+                        <Pie
+                          data={departmentChartData}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={60}
+                          stroke="#fff"
+                          strokeWidth={2}
+                        >
+                          {departmentChartData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                          <ChartTooltip content={<ChartTooltipContent formatter={(value) => `Rp ${value.toLocaleString('id-ID')}`} />} />
                           <ChartLegend content={<ChartLegendContent />} />
-                        </>
+                        </Pie>
                       </ChartContainer>
                     </div>
                     <div className="space-y-2 mt-4">
@@ -502,32 +540,34 @@ export default function Reports() {
                 </div>
               ) : payrollTrendData.length > 0 ? (
                 <div className="h-60">
-                  <ChartContainer
-                    config={payrollTrendConfig}
-                    className="h-full"
-                  >
-                    <>
+                  <ChartContainer config={payrollTrendConfig} className="h-full">
+                    <LineChart data={payrollTrendData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" />
+                      <YAxis
+                        tickFormatter={(value) => `Rp ${value.toLocaleString('id-ID')}`}
+                      />
+                      <ChartTooltip
+                        content={
+                          <ChartTooltipContent
+                            formatter={(value) => `Rp ${value.toLocaleString('id-ID')}`}
+                          />
+                        }
+                      />
                       <Line
-                        data={payrollTrendData}
+                        type="monotone"
                         dataKey="value"
                         name="payroll"
-                        stroke="#8B5CF6" 
+                        stroke="#8B5CF6"
                         strokeWidth={2}
                         dot={{
                           stroke: '#8B5CF6',
                           strokeWidth: 2,
                           r: 4,
-                          fill: 'white'
+                          fill: 'white',
                         }}
                       />
-                      <ChartTooltip 
-                        content={
-                          <ChartTooltipContent 
-                            formatter={(value) => `Rp ${value.toLocaleString('id-ID')}`}
-                          />
-                        }
-                      />
-                    </>
+                    </LineChart>
                   </ChartContainer>
                 </div>
               ) : (
@@ -587,9 +627,9 @@ export default function Reports() {
                         {payrollData.slice(0, 5).map((item, index) => (
                           <TableRow key={index}>
                             <TableCell className="font-medium">{item.full_name}</TableCell>
-                            <TableCell>{item.bank_name || 'N/A'}</TableCell>
-                            <TableCell>{item.bank_account || 'N/A'}</TableCell>
-                            <TableCell>Rp {item.net_salary?.toLocaleString('id-ID')}</TableCell>
+                            <TableCell>{item.bank_name}</TableCell>
+                            <TableCell>{item.bank_account}</TableCell>
+                            <TableCell>Rp {(item.net_salary || 0).toLocaleString('id-ID')}</TableCell>
                             <TableCell>
                               <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                                 item.payment_status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
@@ -697,10 +737,10 @@ export default function Reports() {
                         {payrollData.slice(0, 5).map((item, index) => (
                           <TableRow key={index}>
                             <TableCell className="font-medium">{item.full_name}</TableCell>
-                            <TableCell>{item.position || 'N/A'}</TableCell>
-                            <TableCell>{item.department || 'N/A'}</TableCell>
-                            <TableCell>Rp {item.basic_salary?.toLocaleString('id-ID')}</TableCell>
-                            <TableCell>Rp {item.pph21?.toLocaleString('id-ID')}</TableCell>
+                            <TableCell>{item.position}</TableCell>
+                            <TableCell>{item.department}</TableCell>
+                            <TableCell>Rp {(item.basic_salary || 0).toLocaleString('id-ID')}</TableCell>
+                            <TableCell>Rp {(item.pph21 || 0).toLocaleString('id-ID')}</TableCell>
                             <TableCell>
                               {new Date(item.period_start).toLocaleDateString('id-ID')} - {new Date(item.period_end).toLocaleDateString('id-ID')}
                             </TableCell>
@@ -715,4 +755,168 @@ export default function Reports() {
                     )}
                   </div>
                 ) : (
-                  <div className="flex items-center justify-center
+                  <div className="flex items-center justify-center py-8 border-2 border-dashed rounded-md">
+                    <div className="flex flex-col items-center text-muted-foreground">
+                      <FileText size={40} />
+                      <p className="mt-2">Tidak ada data pajak</p>
+                      <p className="text-sm">Belum ada data pajak untuk periode ini</p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+              <CardFooter className="flex justify-between">
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="flex items-center gap-2"
+                    onClick={() => handleDownload('tax', 'excel')}
+                    disabled={isLoading || payrollData.length === 0}
+                  >
+                    <FileSpreadsheet size={14} />
+                    <span>Excel</span>
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="flex items-center gap-2"
+                    onClick={() => handleDownload('tax', 'csv')}
+                    disabled={isLoading || payrollData.length === 0}
+                  >
+                    <FileText size={14} />
+                    <span>CSV</span>
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="flex items-center gap-2"
+                    onClick={() => handleDownload('tax', 'pdf')}
+                    disabled={isLoading || payrollData.length === 0}
+                  >
+                    <FileText size={14} />
+                    <span>PDF</span>
+                  </Button>
+                </div>
+                <Button 
+                  className="flex items-center gap-2"
+                  onClick={() => handleDownload('tax', 'excel')}
+                  disabled={isLoading || payrollData.length === 0}
+                >
+                  <Download size={16} />
+                  <span>Download Laporan</span>
+                </Button>
+              </CardFooter>
+            </Card>
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="bpjs" className="mt-6">
+          <div className="grid gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Laporan BPJS</CardTitle>
+                <CardDescription>
+                  {selectedMonth === "april2025" ? "April 2025" : selectedMonth === "maret2025" ? "Maret 2025" : "Februari 2025"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <div className="flex justify-center items-center py-8">
+                    <svg className="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  </div>
+                ) : payrollData.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Karyawan</TableHead>
+                          <TableHead>Posisi</TableHead>
+                          <TableHead>Departemen</TableHead>
+                          <TableHead>BPJS Kesehatan</TableHead>
+                          <TableHead>BPJS Ketenagakerjaan</TableHead>
+                          <TableHead>Periode</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {payrollData.slice(0, 5).map((item, index) => (
+                          <TableRow key={index}>
+                            <TableCell className="font-medium">{item.full_name}</TableCell>
+                            <TableCell>{item.position}</TableCell>
+                            <TableCell>{item.department}</TableCell>
+                            <TableCell>Rp {(item.bpjs_kesehatan_total || 0).toLocaleString('id-ID')}</TableCell>
+                            <TableCell>Rp {(item.bpjs_ketenagakerjaan_total || 0).toLocaleString('id-ID')}</TableCell>
+                            <TableCell>
+                              {new Date(item.period_start).toLocaleDateString('id-ID')} - {new Date(item.period_end).toLocaleDateString('id-ID')}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    {payrollData.length > 5 && (
+                      <div className="text-center py-3 text-sm text-gray-500">
+                        Menampilkan 5 dari {payrollData.length} data
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center py-8 border-2 border-dashed rounded-md">
+                    <div className="flex flex-col items-center text-muted-foreground">
+                      <FileText size={40} />
+                      <p className="mt-2">Tidak ada data BPJS</p>
+                      <p className="text-sm">Belum ada data BPJS untuk periode ini</p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+              <CardFooter className="flex justify-between">
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="flex items-center gap-2"
+                    onClick={() => handleDownload('bpjs', 'excel')}
+                    disabled={isLoading || payrollData.length === 0}
+                  >
+                    <FileSpreadsheet size={14} />
+                    <span>Excel</span>
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="flex items-center gap-2"
+                    onClick={() => handleDownload('bpjs', 'csv')}
+                    disabled={isLoading || payrollData.length === 0}
+                  >
+                    <FileText size={14} />
+                    <span>CSV</span>
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="flex items-center gap-2"
+                    onClick={() => handleDownload('bpjs', 'pdf')}
+                    disabled={isLoading || payrollData.length === 0}
+                  >
+                    <FileText size={14} />
+                    <span>PDF</span>
+                  </Button>
+                </div>
+                <Button 
+                  className="flex items-center gap-2"
+                  onClick={() => handleDownload('bpjs', 'excel')}
+                  disabled={isLoading || payrollData.length === 0}
+                >
+                  <Download size={16} />
+                  <span>Download Laporan</span>
+                </Button>
+              </CardFooter>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
