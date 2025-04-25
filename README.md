@@ -1,73 +1,58 @@
-# Welcome to your Lovable project
+# Gaji - Sistem Payroll Terintegrasi
 
-## Project info
+**Gaji** adalah sistem payroll open-source yang dirancang untuk memudahkan perusahaan dalam mengelola penggajian karyawan secara otomatis dan efisien. Sistem ini mendukung integrasi dengan mesin absensi, Google Calendar, dan fitur manajemen karyawan lengkap, termasuk pemotongan pajak dan BPJS.
 
-**URL**: https://lovable.dev/projects/41eb4339-2930-4570-b987-1c31bb517f19
+## Fitur Utama
 
-## How can I edit this code?
+- **Integrasi Mesin Absensi**
+  - Sinkronisasi otomatis data kehadiran karyawan dari mesin absensi fingerprint atau RFID.
+  - Mendukung format umum (CSV, API, atau lokal).
 
-There are several ways of editing your application.
+- **Integrasi Google Calendar**
+  - Sinkronisasi hari libur nasional dan cuti karyawan langsung dari Google Calendar.
+  - Menyediakan tampilan kalender kerja yang interaktif.
 
-**Use Lovable**
+- **Manajemen Karyawan**
+  - Tambah, ubah, dan arsipkan data karyawan.
+  - Pengaturan jabatan, departemen, dan kontrak kerja.
+  - Riwayat kehadiran, cuti, dan status aktif/non-aktif.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/41eb4339-2930-4570-b987-1c31bb517f19) and start prompting.
+- **Pemotongan Pajak dan BPJS**
+  - Perhitungan otomatis PPh 21 sesuai regulasi pajak Indonesia.
+  - Integrasi BPJS Kesehatan dan Ketenagakerjaan.
+  - Slip gaji lengkap dengan rincian potongan dan tunjangan.
 
-Changes made via Lovable will be committed automatically to this repo.
+## Teknologi
 
-**Use your preferred IDE**
+- Backend: Python / Go (TBD)
+- Frontend: React.js, Vite, TailwindCSS
+- Database: PostgreSQL / MySQL
+- Autentikasi: JWT / OAuth2
+- Integrasi Eksternal: Google Calendar API, API mesin absensi (jika tersedia)
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## Instalasi
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```bash
+git clone https://github.com/hoed/gaji.git
+cd gaji
+# Ikuti petunjuk instalasi backend dan frontend di folder masing-masing
 ```
 
-**Edit a file directly in GitHub**
+## Konfigurasi
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+1. Atur koneksi database pada `.env`
+2. Konfigurasikan API key Google Calendar
+3. Integrasikan dengan mesin absensi (jika ada)
+4. Jalankan backend dan frontend
 
-**Use GitHub Codespaces**
+## Dokumentasi
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Lihat dokumentasi lengkap di folder `docs/` atau akses [Wiki GitHub](https://github.com/hoed/gaji/wiki) (jika tersedia).
 
-## What technologies are used for this project?
+## Kontribusi
 
-This project is built with:
+Pull request sangat diterima! Untuk perubahan besar, mohon buka issue terlebih dahulu agar bisa didiskusikan.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Lisensi
 
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/41eb4339-2930-4570-b987-1c31bb517f19) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+MIT License. Lihat `LICENSE` untuk detail.
