@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import {
   Card,
@@ -237,30 +236,33 @@ export default function Dashboard() {
                     config={chartConfig}
                     className="h-full"
                   >
-                    <Line
-                      data={chartData}
-                      dataKey="value"
-                      name="payroll"
-                      stroke="hsl(var(--primary))"
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{
-                        r: 6,
-                        style: { fill: "hsl(var(--primary))" }
-                      }}
-                    />
-                    <ChartTooltip
-                      content={
-                        <ChartTooltipContent
-                          labelKey="date"
-                          labelFormatter={(value) => {
-                            const [year, month] = value.split('-');
-                            return `${month}/${year.substring(2)}`;
-                          }}
-                          formatter={(value) => `Rp${value.toLocaleString('id-ID')}`}
-                        />
-                      }
-                    />
+                    {/* Wrapping Line component in a fragment */}
+                    <>
+                      <Line
+                        data={chartData}
+                        dataKey="value"
+                        name="payroll"
+                        stroke="hsl(var(--primary))"
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{
+                          r: 6,
+                          style: { fill: "hsl(var(--primary))" }
+                        }}
+                      />
+                      <ChartTooltip
+                        content={
+                          <ChartTooltipContent
+                            labelKey="date"
+                            labelFormatter={(value) => {
+                              const [year, month] = value.split('-');
+                              return `${month}/${year.substring(2)}`;
+                            }}
+                            formatter={(value) => `Rp${value.toLocaleString('id-ID')}`}
+                          />
+                        }
+                      />
+                    </>
                   </ChartContainer>
                 </div>
               ) : (

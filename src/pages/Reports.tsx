@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,9 +24,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { FileText, Download, PieChart, BarChart, FileSpreadsheet, FileText2, FilePdf } from "lucide-react";
+import { FileText, Download, PieChart, BarChart, FileSpreadsheet } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Tables } from "@/integrations/supabase/types";
 import { exportToExcel, exportToCSV, exportToPDF } from "@/utils/exportUtils";
 import {
@@ -38,6 +37,8 @@ import {
   ChartLegendContent
 } from "@/components/ui/chart";
 import { Line, Pie } from "recharts";
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
 // Define interface for department summary (not a database table)
 interface DepartmentSummary {
@@ -55,7 +56,6 @@ export default function Reports() {
   const [positions, setPositions] = useState<Tables<"positions">[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [trendData, setTrendData] = useState<{month: string; value: number}[]>([]);
-  const { toast } = useToast();
 
   // Fetch data for reports
   useEffect(() => {
@@ -130,17 +130,13 @@ export default function Reports() {
 
       } catch (error) {
         console.error('Error fetching data for reports:', error);
-        toast({
-          title: "Error",
-          description: "Gagal memuat data laporan.",
-          variant: "destructive",
-        });
+        toast.error("Gagal memuat data laporan.");
       } finally {
         setIsLoading(false);
       }
     };
     fetchData();
-  }, [selectedMonth, toast]);
+  }, [selectedMonth]);
 
   // Aggregate data for summary
   const totalGrossSalary = payrollData.reduce((sum, p) => sum + (p.basic_salary || 0), 0);
@@ -432,26 +428,29 @@ export default function Reports() {
                         config={departmentChartConfig}
                         className="h-full"
                       >
-                        <Pie 
-                          data={departmentChartData}
-                          dataKey="value"
-                          nameKey="name"
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={60}
-                          fill="#8884d8"
-                          stroke="#fff"
-                          strokeWidth={2}
-                        >
-                          {departmentChartData.map((entry, index) => (
-                            <Pie 
-                              key={`cell-${index}`} 
-                              fill={entry.color} 
-                            />
-                          ))}
-                        </Pie>
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                        <ChartLegend content={<ChartLegendContent />} />
+                        <>
+                          <Pie 
+                            data={departmentChartData}
+                            dataKey="value"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={60}
+                            fill="#8884d8"
+                            stroke="#fff"
+                            strokeWidth={2}
+                          >
+                            {departmentChartData.map((entry, index) => (
+                              <Pie 
+                                key={`cell-${index}`} 
+                                dataKey="value"
+                                fill={entry.color} 
+                              />
+                            ))}
+                          </Pie>
+                          <ChartTooltip content={<ChartTooltipContent />} />
+                          <ChartLegend content={<ChartLegendContent />} />
+                        </>
                       </ChartContainer>
                     </div>
                     <div className="space-y-2 mt-4">
@@ -506,26 +505,28 @@ export default function Reports() {
                     config={payrollTrendConfig}
                     className="h-full"
                   >
-                    <Line
-                      data={payrollTrendData}
-                      dataKey="value"
-                      name="payroll"
-                      stroke="#8B5CF6" 
-                      strokeWidth={2}
-                      dot={{
-                        stroke: '#8B5CF6',
-                        strokeWidth: 2,
-                        r: 4,
-                        fill: 'white'
-                      }}
-                    />
-                    <ChartTooltip 
-                      content={
-                        <ChartTooltipContent 
-                          formatter={(value) => `Rp ${value.toLocaleString('id-ID')}`}
-                        />
-                      }
-                    />
+                    <>
+                      <Line
+                        data={payrollTrendData}
+                        dataKey="value"
+                        name="payroll"
+                        stroke="#8B5CF6" 
+                        strokeWidth={2}
+                        dot={{
+                          stroke: '#8B5CF6',
+                          strokeWidth: 2,
+                          r: 4,
+                          fill: 'white'
+                        }}
+                      />
+                      <ChartTooltip 
+                        content={
+                          <ChartTooltipContent 
+                            formatter={(value) => `Rp ${value.toLocaleString('id-ID')}`}
+                          />
+                        }
+                      />
+                    </>
                   </ChartContainer>
                 </div>
               ) : (
@@ -634,7 +635,7 @@ export default function Reports() {
                     onClick={() => handleDownload('payroll', 'csv')}
                     disabled={isLoading || payrollData.length === 0}
                   >
-                    <FileText2 size={14} />
+                    <FileText size={14} />
                     <span>CSV</span>
                   </Button>
                   <Button 
@@ -644,7 +645,7 @@ export default function Reports() {
                     onClick={() => handleDownload('payroll', 'pdf')}
                     disabled={isLoading || payrollData.length === 0}
                   >
-                    <FilePdf size={14} />
+                    <FileText size={14} />
                     <span>PDF</span>
                   </Button>
                 </div>
@@ -713,229 +714,4 @@ export default function Reports() {
                     )}
                   </div>
                 ) : (
-                  <div className="flex items-center justify-center py-8 border-2 border-dashed rounded-md">
-                    <div className="flex flex-col items-center text-muted-foreground">
-                      <FileText size={40} />
-                      <p className="mt-2">Tidak ada data pajak</p>
-                      <p className="text-sm">Belum ada data pajak untuk periode ini</p>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-              <CardFooter className="flex justify-between">
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="flex items-center gap-2"
-                    onClick={() => handleDownload('tax', 'excel')}
-                    disabled={isLoading || payrollData.length === 0}
-                  >
-                    <FileSpreadsheet size={14} />
-                    <span>Excel</span>
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="flex items-center gap-2"
-                    onClick={() => handleDownload('tax', 'csv')}
-                    disabled={isLoading || payrollData.length === 0}
-                  >
-                    <FileText2 size={14} />
-                    <span>CSV</span>
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="flex items-center gap-2"
-                    onClick={() => handleDownload('tax', 'pdf')}
-                    disabled={isLoading || payrollData.length === 0}
-                  >
-                    <FilePdf size={14} />
-                    <span>PDF</span>
-                  </Button>
-                </div>
-                <Button 
-                  className="flex items-center gap-2"
-                  onClick={() => handleDownload('tax', 'excel')}
-                  disabled={isLoading || payrollData.length === 0}
-                >
-                  <Download size={16} />
-                  <span>Download Laporan</span>
-                </Button>
-              </CardFooter>
-            </Card>
-          </div>
-        </TabsContent>
-        
-        <TabsContent value="bpjs" className="mt-6">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Laporan BPJS Kesehatan</CardTitle>
-                <CardDescription>
-                  {selectedMonth === "april2025" ? "April 2025" : selectedMonth === "maret2025" ? "Maret 2025" : "Februari 2025"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <div className="flex justify-center items-center py-8">
-                    <svg className="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  </div>
-                ) : payrollData.length > 0 ? (
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center pb-2 border-b">
-                      <span className="text-muted-foreground">Total Iuran Karyawan</span>
-                      <span className="font-medium">Rp {payrollData.reduce((sum, p) => sum + (p.bpjs_kes_employee || 0), 0).toLocaleString('id-ID')}</span>
-                    </div>
-                    <div className="flex justify-between items-center pb-2 border-b">
-                      <span className="text-muted-foreground">Total Iuran Perusahaan</span>
-                      <span className="font-medium">Rp {payrollData.reduce((sum, p) => sum + (p.bpjs_kes_company || 0), 0).toLocaleString('id-ID')}</span>
-                    </div>
-                    <div className="flex justify-between items-center pt-2">
-                      <span className="font-medium">Total Iuran</span>
-                      <span className="font-bold">Rp {totalBPJSKesehatan.toLocaleString('id-ID')}</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center py-8 border-2 border-dashed rounded-md">
-                    <div className="flex flex-col items-center text-muted-foreground">
-                      <FileText size={40} />
-                      <p className="mt-2">Tidak ada data BPJS Kesehatan</p>
-                      <p className="text-sm">Data iuran BPJS Kesehatan belum tersedia</p>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-              <CardFooter className="flex justify-between">
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="flex items-center gap-2"
-                    onClick={() => handleDownload('bpjs', 'excel')}
-                    disabled={isLoading || payrollData.length === 0}
-                  >
-                    <FileSpreadsheet size={14} />
-                    <span>Excel</span>
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="flex items-center gap-2"
-                    onClick={() => handleDownload('bpjs', 'csv')}
-                    disabled={isLoading || payrollData.length === 0}
-                  >
-                    <FileText2 size={14} />
-                    <span>CSV</span>
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="flex items-center gap-2"
-                    onClick={() => handleDownload('bpjs', 'pdf')}
-                    disabled={isLoading || payrollData.length === 0}
-                  >
-                    <FilePdf size={14} />
-                    <span>PDF</span>
-                  </Button>
-                </div>
-              </CardFooter>
-            </Card>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Laporan BPJS Ketenagakerjaan</CardTitle>
-                <CardDescription>
-                  {selectedMonth === "april2025" ? "April 2025" : selectedMonth === "maret2025" ? "Maret 2025" : "Februari 2025"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <div className="flex justify-center items-center py-8">
-                    <svg className="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  </div>
-                ) : payrollData.length > 0 ? (
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center pb-2 border-b">
-                      <span className="text-muted-foreground">Total JHT (Karyawan)</span>
-                      <span className="font-medium">Rp {payrollData.reduce((sum, p) => sum + (p.bpjs_tk_jht_employee || 0), 0).toLocaleString('id-ID')}</span>
-                    </div>
-                    <div className="flex justify-between items-center pb-2 border-b">
-                      <span className="text-muted-foreground">Total JHT (Perusahaan)</span>
-                      <span className="font-medium">Rp {payrollData.reduce((sum, p) => sum + (p.bpjs_tk_jht_company || 0), 0).toLocaleString('id-ID')}</span>
-                    </div>
-                    <div className="flex justify-between items-center pb-2 border-b">
-                      <span className="text-muted-foreground">Total JP (Karyawan)</span>
-                      <span className="font-medium">Rp {payrollData.reduce((sum, p) => sum + (p.bpjs_tk_jp_employee || 0), 0).toLocaleString('id-ID')}</span>
-                    </div>
-                    <div className="flex justify-between items-center pb-2 border-b">
-                      <span className="text-muted-foreground">Total JP (Perusahaan)</span>
-                      <span className="font-medium">Rp {payrollData.reduce((sum, p) => sum + (p.bpjs_tk_jp_company || 0), 0).toLocaleString('id-ID')}</span>
-                    </div>
-                    <div className="flex justify-between items-center pb-2 border-b">
-                      <span className="text-muted-foreground">Total JKK & JKM</span>
-                      <span className="font-medium">Rp {(payrollData.reduce((sum, p) => sum + (p.bpjs_tk_jkk || 0) + (p.bpjs_tk_jkm || 0), 0)).toLocaleString('id-ID')}</span>
-                    </div>
-                    <div className="flex justify-between items-center pt-2">
-                      <span className="font-medium">Total Iuran</span>
-                      <span className="font-bold">Rp {totalBPJSKetenagakerjaan.toLocaleString('id-ID')}</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center py-8 border-2 border-dashed rounded-md">
-                    <div className="flex flex-col items-center text-muted-foreground">
-                      <FileText size={40} />
-                      <p className="mt-2">Tidak ada data BPJS Ketenagakerjaan</p>
-                      <p className="text-sm">Data iuran BPJS Ketenagakerjaan belum tersedia</p>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-              <CardFooter className="flex justify-between">
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="flex items-center gap-2"
-                    onClick={() => handleDownload('bpjs', 'excel')}
-                    disabled={isLoading || payrollData.length === 0}
-                  >
-                    <FileSpreadsheet size={14} />
-                    <span>Excel</span>
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="flex items-center gap-2"
-                    onClick={() => handleDownload('bpjs', 'csv')}
-                    disabled={isLoading || payrollData.length === 0}
-                  >
-                    <FileText2 size={14} />
-                    <span>CSV</span>
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="flex items-center gap-2"
-                    onClick={() => handleDownload('bpjs', 'pdf')}
-                    disabled={isLoading || payrollData.length === 0}
-                  >
-                    <FilePdf size={14} />
-                    <span>PDF</span>
-                  </Button>
-                </div>
-              </CardFooter>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
+                  <div className="flex items-center justify-center
