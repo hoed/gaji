@@ -9,6 +9,39 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      api_keys: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          key: string
+          last_used_at: string | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          key: string
+          last_used_at?: string | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          key?: string
+          last_used_at?: string | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       attendance: {
         Row: {
           check_in: string | null
@@ -62,42 +95,87 @@ export type Database = {
       }
       calendar_events: {
         Row: {
+          attendance_id: string | null
           created_at: string | null
           description: string | null
+          employee_id: string | null
           end_time: string
           event_type: string
           google_event_id: string | null
           id: string
-          related_id: string | null
+          is_synced: boolean | null
+          payroll_id: string | null
           start_time: string
           title: string
           updated_at: string | null
         }
         Insert: {
+          attendance_id?: string | null
           created_at?: string | null
           description?: string | null
+          employee_id?: string | null
           end_time: string
           event_type: string
           google_event_id?: string | null
           id?: string
-          related_id?: string | null
+          is_synced?: boolean | null
+          payroll_id?: string | null
           start_time: string
           title: string
           updated_at?: string | null
         }
         Update: {
+          attendance_id?: string | null
           created_at?: string | null
           description?: string | null
+          employee_id?: string | null
           end_time?: string
           event_type?: string
           google_event_id?: string | null
           id?: string
-          related_id?: string | null
+          is_synced?: boolean | null
+          payroll_id?: string | null
           start_time?: string
           title?: string
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "calendar_events_attendance_id_fkey"
+            columns: ["attendance_id"]
+            isOneToOne: false
+            referencedRelation: "attendance"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_events_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_summary"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "calendar_events_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_events_payroll_id_fkey"
+            columns: ["payroll_id"]
+            isOneToOne: false
+            referencedRelation: "payroll"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_events_payroll_id_fkey"
+            columns: ["payroll_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_summary"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       departments: {
         Row: {
@@ -337,6 +415,8 @@ export type Database = {
       payroll_summary: {
         Row: {
           allowances: number | null
+          bank_account: string | null
+          bank_name: string | null
           basic_salary: number | null
           bpjs_kesehatan_total: number | null
           bpjs_ketenagakerjaan_total: number | null

@@ -1,4 +1,3 @@
-
 /* src/pages/Employees.tsx */
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -36,7 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Plus, MoreVertical, Eye, Edit, XCircle, Save } from "lucide-react";
+import { Search, Plus, MoreVertical, Eye, Edit, XCircle, Save, User, Briefcase, Wallet, CreditCard } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -507,15 +506,18 @@ export default function Employees() {
 
       {/* Employee Detail Dialog */}
       <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-        <DialogContent className="sm:max-w-[700px]">
+        <DialogContent className="sm:max-w-[700px] overflow-hidden">
           <DialogHeader>
             <DialogTitle>{isEditMode ? "Edit Data Karyawan" : "Detail Karyawan"}</DialogTitle>
           </DialogHeader>
           {selectedEmployee && (
-            <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-1">
-              {/* Personal Information */}
-              <div>
-                <h3 className="text-lg font-semibold mb-4">Informasi Pribadi</h3>
+            <div className="space-y-6 max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 pr-2">
+              {/* Personal Information Section */}
+              <div className="bg-white rounded-lg p-4 space-y-4">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <User className="h-5 w-5 text-primary" />
+                  Informasi Pribadi
+                </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="firstName">Nama Depan</Label>
@@ -575,10 +577,13 @@ export default function Employees() {
                   </div>
                 </div>
               </div>
-              
-              {/* Job Information */}
-              <div>
-                <h3 className="text-lg font-semibold mb-4">Informasi Pekerjaan</h3>
+
+              {/* Job Information Section */}
+              <div className="bg-white rounded-lg p-4 space-y-4">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Briefcase className="h-5 w-5 text-primary" />
+                  Informasi Pekerjaan
+                </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {isEditMode ? (
                     <>
@@ -657,9 +662,12 @@ export default function Employees() {
                 </div>
               </div>
 
-              {/* Financial Information */}
-              <div>
-                <h3 className="text-lg font-semibold mb-4">Informasi Keuangan</h3>
+              {/* Financial Information Section */}
+              <div className="bg-white rounded-lg p-4 space-y-4">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Wallet className="h-5 w-5 text-primary" />
+                  Informasi Keuangan
+                </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="basicSalary">Gaji Pokok</Label>
@@ -758,44 +766,12 @@ export default function Employees() {
                 </div>
               </div>
 
-              {/* BPJS Information */}
-              <div>
-                <h3 className="text-lg font-semibold mb-4">Informasi BPJS</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="bpjsKesehatan">BPJS Kesehatan</Label>
-                    <Input 
-                      id="bpjsKesehatan" 
-                      value={selectedEmployee.bpjs_kesehatan || ''}
-                      onChange={e => setSelectedEmployee({...selectedEmployee, bpjs_kesehatan: e.target.value})}
-                      disabled={!isEditMode}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="bpjsKetenagakerjaan">BPJS Ketenagakerjaan</Label>
-                    <Input 
-                      id="bpjsKetenagakerjaan" 
-                      value={selectedEmployee.bpjs_ketenagakerjaan || ''}
-                      onChange={e => setSelectedEmployee({...selectedEmployee, bpjs_ketenagakerjaan: e.target.value})}
-                      disabled={!isEditMode}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="bpjsDeduction">Potongan BPJS</Label>
-                    <Input 
-                      id="bpjsDeduction" 
-                      type="number"
-                      value={selectedEmployee.bpjs_deduction || 0}
-                      onChange={e => setSelectedEmployee({...selectedEmployee, bpjs_deduction: parseFloat(e.target.value)})}
-                      disabled={!isEditMode}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Bank Information */}
-              <div>
-                <h3 className="text-lg font-semibold mb-4">Informasi Bank</h3>
+              {/* Bank Information Section */}
+              <div className="bg-white rounded-lg p-4 space-y-4">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <CreditCard className="h-5 w-5 text-primary" />
+                  Informasi Bank
+                </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="bankName">Nama Bank</Label>
@@ -817,37 +793,9 @@ export default function Employees() {
                   </div>
                 </div>
               </div>
-
-              {/* Summary Information */}
-              <div className="pt-4 border-t">
-                <h3 className="text-lg font-semibold mb-4">Ringkasan Gaji</h3>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Gaji Pokok</p>
-                    <p>Rp {(selectedEmployee.basic_salary || 0).toLocaleString('id-ID')}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total Tunjangan</p>
-                    <p>Rp {(selectedEmployee.allowances || 0).toLocaleString('id-ID')}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total Potongan</p>
-                    <p>Rp {((selectedEmployee.tax_deduction || 0) + (selectedEmployee.bpjs_deduction || 0)).toLocaleString('id-ID')}</p>
-                  </div>
-                  <div>
-                    <p className="font-semibold">Gaji Bersih</p>
-                    <p className="font-bold">Rp {(
-                      (selectedEmployee.basic_salary || 0) + 
-                      (selectedEmployee.allowances || 0) - 
-                      (selectedEmployee.tax_deduction || 0) - 
-                      (selectedEmployee.bpjs_deduction || 0)
-                    ).toLocaleString('id-ID')}</p>
-                  </div>
-                </div>
-              </div>
             </div>
           )}
-          <DialogFooter>
+          <DialogFooter className="mt-6">
             <DialogClose asChild>
               <Button variant="outline">
                 {isEditMode ? "Batal" : "Tutup"}
