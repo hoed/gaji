@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/select";
 import { Calculator, FileSpreadsheet, Calendar, ArrowRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Tables, TablesInsert } from "@/integrations/supabase/types";
@@ -49,6 +50,7 @@ interface EmployeeData {
   id: string;
   first_name: string;
   last_name: string;
+  full_name: string;
   incentive: number | null;
   transportation_fee: number | null;
   basic_salary: number | null;
@@ -57,14 +59,29 @@ interface EmployeeData {
 export default function Payroll() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [payrollData, setPayrollData] = useState<EnrichedPayroll[]>([]);
+ едель
+
   const [employees, setEmployees] = useState<EmployeeData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   // Form state for payroll processing
-  const [selectedPeriod, setSelectedPeriod] = useState<string>("april2025");
+  const [selectedPeriod, setSelectedPeriod] = useState<string>("");
   const [paymentDate, setPaymentDate] = useState<string>("");
-  const [notes, setNotes] = useState<string>("");
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
+  const [basicSalary, setBasicSalary] = useState<number>(0);
+  const [incentive, setIncentive] = useState<number>(0);
+  const [transportationFee, setTransportationFee] = useState<number>(0);
+  const [bpjsKesEmployee, setBpjsKesEmployee] = useState<number>(0);
+  const [bpjsKesCompany, setBpjsKesCompany] = useState<number>(0);
+  const [bpjsTkJhtEmployee, setBpjsTkJhtEmployee] = useState<number>(0);
+  const [bpjsTkJhtCompany, setBpjsTkJhtCompany] = useState<number>(0);
+  const [bpjsTkJkk, setBpjsTkJkk] = useState<number>(0);
+  const [bpjsTkJkm, setBpjsTkJkm] = useState<number>(0);
+  const [bpjsTkJpEmployee, setBpjsTkJpEmployee] = useState<number>(0);
+  const [bpjsTkJpCompany, setBpjsTkJpCompany] = useState<number>(0);
+  const [pph21, setPph21] = useState<number>(0);
+  const [netSalary, setNetSalary] = useState<number>(0);
 
   // Fetch payroll and employees data
   useEffect(() => {
@@ -85,14 +102,20 @@ export default function Payroll() {
           .select("id, first_name, last_name, incentive, transportation_fee, basic_salary");
 
         if (employeesError) throw employeesError;
-        setEmployees(employeesData || []);
+
+        // Enrich employees data with full_name
+        const enrichedEmployees: EmployeeData[] = (employeesData || []).map(emp => ({
+          ...emp,
+          full_name: `${emp.first_name} ${emp.last_name || ""}`.trim(),
+        }));
+        setEmployees(enrichedEmployees);
 
         // Enrich payroll data with employee names
         const enrichedData: EnrichedPayroll[] = payrollData.map((payroll) => {
-          const employee = employeesData.find((emp) => emp.id === payroll.employee_id);
+          const employee = enrichedEmployees.find((emp) => emp.id === payroll.employee_id);
           return {
             ...payroll,
-            full_name: employee ? `${employee.first_name} ${employee.last_name || ""}`.trim() : "Unknown",
+            full_name: employee ? employee.full_name : "Unknown",
           };
         });
         setPayrollData(enrichedData);
@@ -145,100 +168,171 @@ export default function Payroll() {
     ? format(new Date(mostRecentPeriod), "MMMM yyyy")
     : "Tidak ada data";
 
-  // Handle payroll processing
+  // Handle employee selection change
+  const handleEmployeeChange = (employeeId: string) => {
+    setSelectedEmployeeId(employeeId);
+    const employee = employees.find(emp => emp.id === employeeId);
+    if (employee) {
+      setBasicSalary(employee.basic_salary ?? 0);
+      setIncentive(employee.incentive ?? 0);
+      setTransportationFee(employee.transportation_fee ?? 0);
+
+      // Recalculate BPJS contributions based on basic salary
+      const salary = employee.basic_salary ?? 0;
+      setBpjsKesEmployee(salary * 0.01); // 1% employee contribution
+      setBpjsKesCompany(salary * 0.04); // 4% company contribution
+      setBpjsTkJhtEmployee(salary * 0.02); // 2% employee contribution
+      setBpjsTkJhtCompany(salary * 0.037); // 3.7% company contribution
+      setBpjsTkJpEmployee(salary * 0.01); // 1% employee contribution
+      setBpjsTkJpCompany(salary * 0.02); // 2% company contribution
+      setBpjsTkJkk(salary * 0.0024); // 0.24% company contribution
+      setBpjsTkJkm(salary * 0.003); // 0.3% company contribution
+
+      // Recalculate PPh21 and net salary
+      const allowances = (employee.incentive ?? 0) + (employee.transportation_fee ?? 0);
+      const taxableIncome = (salary + allowances) * 12; // Annualize
+      const newPph21 = taxableIncome <= 60000000 ? 0 : (taxableIncome * 0.05) / 12; // 5% tax if above 60M annually
+      setPph21(newPph21);
+
+      const deductions = (salary * 0.01) + (salary * 0.02) + (salary * 0.01) + newPph21;
+      setNetSalary(salary + allowances - deductions);
+    } else {
+      setBasicSalary(0);
+      setIncentive(0);
+      setTransportationFee(0);
+      setBpjsKesEmployee(0);
+      setBpjsKesCompany(0);
+      setBpjsTkJhtEmployee(0);
+      setBpjsTkJhtCompany(0);
+      setBpjsTkJkk(0);
+      setBpjsTkJkm(0);
+      setBpjsTkJpEmployee(0);
+      setBpjsTkJpCompany(0);
+      setPph21(0);
+      setNetSalary(0);
+    }
+  };
+
+  // Shared validation and record creation logic
+  const validateAndCreatePayrollRecord = async (status: "paid" | "pending") => {
+    // Validate required fields
+    if (!selectedPeriod) {
+      toast({
+        title: "Error",
+        description: "Periode penggajian harus dipilih.",
+        variant: "destructive",
+      });
+      return null;
+    }
+    if (!paymentDate) {
+      toast({
+        title: "Error",
+        description: "Tanggal pembayaran harus diisi.",
+        variant: "destructive",
+      });
+      return null;
+    }
+    if (!selectedEmployeeId) {
+      toast({
+        title: "Error",
+        description: "Nama karyawan harus dipilih.",
+        variant: "destructive",
+      });
+      return null;
+    }
+    if (basicSalary <= 0) {
+      toast({
+        title: "Error",
+        description: "Gaji pokok harus lebih besar dari 0.",
+        variant: "destructive",
+      });
+      return null;
+    }
+
+    // Determine period start and end dates based on selected period
+    let periodStart: string, periodEnd: string;
+    if (selectedPeriod === "april2025") {
+      periodStart = "2025-04-01";
+      periodEnd = "2025-04-30";
+    } else if (selectedPeriod === "mei2025") {
+      periodStart = "2025-05-01";
+      periodEnd = "2025-05-31";
+    } else {
+      throw new Error("Periode tidak valid.");
+    }
+
+    // Check if payroll already exists for this employee in the selected period
+    const existingPayroll = payrollData.find(
+      (p) =>
+        p.period_start === periodStart &&
+        p.period_end === periodEnd &&
+        p.employee_id === selectedEmployeeId
+    );
+    if (existingPayroll) {
+      toast({
+        title: "Error",
+        description: `Penggajian untuk karyawan ini pada periode ${format(new Date(periodStart), "MMMM yyyy")} sudah diproses.`,
+        variant: "destructive",
+      });
+      return null;
+    }
+
+    // Prepare payroll record
+    const payrollRecord: TablesInsert<"payroll"> = {
+      employee_id: selectedEmployeeId,
+      period_start: periodStart,
+      period_end: periodEnd,
+      basic_salary: basicSalary,
+      allowances: incentive + transportationFee,
+      bpjs_kes_employee: bpjsKesEmployee,
+      bpjs_kes_company: bpjsKesCompany,
+      bpjs_tk_jht_employee: bpjsTkJhtEmployee,
+      bpjs_tk_jht_company: bpjsTkJhtCompany,
+      bpjs_tk_jkk: bpjsTkJkk,
+      bpjs_tk_jkm: bpjsTkJkm,
+      bpjs_tk_jp_employee: bpjsTkJpEmployee,
+      bpjs_tk_jp_company: bpjsTkJpCompany,
+      pph21: pph21,
+      net_salary: netSalary,
+      payment_status: status,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    return { payrollRecord, periodStart };
+  };
+
+  // Refresh payroll data after save or process
+  const refreshPayrollData = async () => {
+    const { data: newPayrollData, error: fetchError } = await supabase
+      .from("payroll")
+      .select("*")
+      .order("period_start", { ascending: false });
+
+    if (fetchError) throw fetchError;
+
+    const enrichedData: EnrichedPayroll[] = newPayrollData.map((payroll) => {
+      const employee = employees.find((emp) => emp.id === payroll.employee_id);
+      return {
+        ...payroll,
+        full_name: employee ? `${employee.first_name} ${employee.last_name || ""}`.trim() : "Unknown",
+      };
+    });
+    setPayrollData(enrichedData);
+  };
+
+  // Handle payroll processing (status: paid)
   const handleProcessPayroll = async () => {
     try {
-      if (!paymentDate) {
-        toast({
-          title: "Error",
-          description: "Tanggal pembayaran harus diisi.",
-          variant: "destructive",
-        });
-        return;
-      }
+      const result = await validateAndCreatePayrollRecord("paid");
+      if (!result) return;
 
-      // Determine period start and end dates based on selected period
-      let periodStart: string, periodEnd: string;
-      if (selectedPeriod === "april2025") {
-        periodStart = "2025-04-01";
-        periodEnd = "2025-04-30";
-      } else if (selectedPeriod === "mei2025") {
-        periodStart = "2025-05-01";
-        periodEnd = "2025-05-31";
-      } else {
-        throw new Error("Periode tidak valid.");
-      }
+      const { payrollRecord, periodStart } = result;
 
-      // Check if payroll already exists for the period
-      const existingPayroll = payrollData.filter(
-        (p) => p.period_start === periodStart && p.period_end === periodEnd
-      );
-      if (existingPayroll.length > 0) {
-        toast({
-          title: "Error",
-          description: `Penggajian untuk periode ${format(new Date(periodStart), "MMMM yyyy")} sudah diproses.`,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Calculate payroll for each employee
-      const payrollRecords: TablesInsert<"payroll">[] = employees.map((employee) => {
-        const basicSalary = employee.basic_salary ?? 0;
-        if (basicSalary === 0) {
-          throw new Error(`Gaji pokok untuk karyawan ${employee.first_name} ${employee.last_name || ""} belum diatur.`);
-        }
-
-        const allowances = (employee.incentive || 0) + (employee.transportation_fee || 0);
-
-        // BPJS Calculations (simplified percentages)
-        const bpjsKesEmployee = basicSalary * 0.01; // 1% employee contribution
-        const bpjsKesCompany = basicSalary * 0.04; // 4% company contribution
-        const bpjsTkJhtEmployee = basicSalary * 0.02; // 2% employee contribution
-        const bpjsTkJhtCompany = basicSalary * 0.037; // 3.7% company contribution
-        const bpjsTkJpEmployee = basicSalary * 0.01; // 1% employee contribution
-        const bpjsTkJpCompany = basicSalary * 0.02; // 2% company contribution
-        const bpjsTkJkk = basicSalary * 0.0024; // 0.24% company contribution
-        const bpjsTkJkm = basicSalary * 0.003; // 0.3% company contribution
-
-        // PPh 21 Calculation (simplified)
-        const taxableIncome = (basicSalary + allowances) * 12; // Annualize
-        const pph21 = taxableIncome <= 60000000 ? 0 : (taxableIncome * 0.05) / 12; // 5% tax if above 60M annually
-
-        // Net Salary
-        const deductions =
-          bpjsKesEmployee +
-          bpjsTkJhtEmployee +
-          bpjsTkJpEmployee +
-          pph21;
-        const netSalary = basicSalary + allowances - deductions;
-
-        return {
-          employee_id: employee.id,
-          period_start: periodStart,
-          period_end: periodEnd,
-          basic_salary: basicSalary,
-          allowances: allowances,
-          bpjs_kes_employee: bpjsKesEmployee,
-          bpjs_kes_company: bpjsKesCompany,
-          bpjs_tk_jht_employee: bpjsTkJhtEmployee,
-          bpjs_tk_jht_company: bpjsTkJhtCompany,
-          bpjs_tk_jp_employee: bpjsTkJpEmployee,
-          bpjs_tk_jp_company: bpjsTkJpCompany,
-          bpjs_tk_jkk: bpjsTkJkk,
-          bpjs_tk_jkm: bpjsTkJkm,
-          pph21: pph21,
-          net_salary: netSalary,
-          payment_status: "paid",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-      });
-
-      // Insert payroll records into the database
+      // Insert payroll record into the database
       const { error: insertError } = await supabase
         .from("payroll")
-        .insert(payrollRecords);
+        .insert([payrollRecord]);
 
       if (insertError) throw insertError;
 
@@ -249,30 +343,80 @@ export default function Payroll() {
       });
 
       // Refresh payroll data
-      const { data: newPayrollData, error: fetchError } = await supabase
-        .from("payroll")
-        .select("*")
-        .order("period_start", { ascending: false });
+      await refreshPayrollData();
 
-      if (fetchError) throw fetchError;
-
-      const enrichedData: EnrichedPayroll[] = newPayrollData.map((payroll) => {
-        const employee = employees.find((emp) => emp.id === payroll.employee_id);
-        return {
-          ...payroll,
-          full_name: employee ? `${employee.first_name} ${employee.last_name || ""}`.trim() : "Unknown",
-        };
-      });
-      setPayrollData(enrichedData);
-
+      // Reset form and close dialog
       setIsDialogOpen(false);
+      setSelectedPeriod("");
       setPaymentDate("");
-      setNotes("");
+      setSelectedEmployeeId("");
+      setBasicSalary(0);
+      setIncentive(0);
+      setTransportationFee(0);
+      setBpjsKesEmployee(0);
+      setBpjsKesCompany(0);
+      setBpjsTkJhtEmployee(0);
+      setBpjsTkJhtCompany(0);
+      setBpjsTkJkk(0);
+      setBpjsTkJkm(0);
+      setBpjsTkJpEmployee(0);
+      setBpjsTkJpCompany(0);
+      setPph21(0);
+      setNetSalary(0);
     } catch (error: any) {
       console.error("Error processing payroll:", error);
       toast({
         title: "Error",
         description: `Gagal memproses penggajian: ${error.message}`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handle saving payroll (status: pending)
+  const handleSavePayroll = async () => {
+    try {
+      const result = await validateAndCreatePayrollRecord("pending");
+      if (!result) return;
+
+      const { payrollRecord, periodStart } = result;
+
+      // Insert payroll record into the database
+      const { error: insertError } = await supabase
+        .from("payroll")
+        .insert([payrollRecord]);
+
+      if (insertError) throw insertError;
+
+      toast({
+        title: "Sukses",
+        description: `Penggajian untuk periode ${format(new Date(periodStart), "MMMM yyyy")} telah disimpan sebagai draft.`,
+        variant: "default",
+      });
+
+      // Refresh payroll data
+      await refreshPayrollData();
+
+      // Reset employee-related fields to allow saving another record
+      setSelectedEmployeeId("");
+      setBasicSalary(0);
+      setIncentive(0);
+      setTransportationFee(0);
+      setBpjsKesEmployee(0);
+      setBpjsKesCompany(0);
+      setBpjsTkJhtEmployee(0);
+      setBpjsTkJhtCompany(0);
+      setBpjsTkJkk(0);
+      setBpjsTkJkm(0);
+      setBpjsTkJpEmployee(0);
+      setBpjsTkJpCompany(0);
+      setPph21(0);
+      setNetSalary(0);
+    } catch (error: any) {
+      console.error("Error saving payroll:", error);
+      toast({
+        title: "Error",
+        description: `Gagal menyimpan penggajian: ${error.message}`,
         variant: "destructive",
       });
     }
@@ -508,21 +652,21 @@ export default function Payroll() {
                 <span>Proses Penggajian</span>
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent className="sm:max-w-[600px]">
               <DialogHeader>
                 <DialogTitle>Proses Penggajian</DialogTitle>
                 <DialogDescription>
-                  Proses penggajian untuk periode berikut
+                  Isi detail penggajian untuk karyawan
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
+              <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
                 <div className="grid gap-2">
-                  <label className="text-sm font-medium">Periode Penggajian</label>
+                  <Label htmlFor="period">Periode Penggajian</Label>
                   <Select
                     value={selectedPeriod}
                     onValueChange={setSelectedPeriod}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="period">
                       <SelectValue placeholder="Pilih periode" />
                     </SelectTrigger>
                     <SelectContent>
@@ -532,27 +676,215 @@ export default function Payroll() {
                   </Select>
                 </div>
                 <div className="grid gap-2">
-                  <label className="text-sm font-medium">Tanggal Pembayaran</label>
+                  <Label htmlFor="payment-date">Tanggal Pembayaran</Label>
                   <Input
+                    id="payment-date"
                     type="date"
                     value={paymentDate}
                     onChange={(e) => setPaymentDate(e.target.value)}
                   />
                 </div>
+                <div className "grid gap-2">
+                  <Label htmlFor="employee">Nama Karyawan</Label>
+                  <Select
+                    value={selectedEmployeeId}
+                    onValueChange={handleEmployeeChange}
+                  >
+                    <SelectTrigger id="employee">
+                      <SelectValue placeholder="Pilih karyawan" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {employees.map((employee) => (
+                        <SelectItem key={employee.id} value={employee.id}>
+                          {employee.full_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="grid gap-2">
-                  <label className="text-sm font-medium">Catatan</label>
+                  <Label htmlFor="basic-salary">Gaji Pokok (Rp)</Label>
                   <Input
-                    placeholder="Catatan untuk penggajian periode ini"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
+                    id="basic-salary"
+                    type="number"
+                    value={basicSalary}
+                    onChange={(e) => {
+                      const salary = Number(e.target.value);
+                      setBasicSalary(salary);
+                      setBpjsKesEmployee(salary * 0.01);
+                      setBpjsKesCompany(salary * 0.04);
+                      setBpjsTkJhtEmployee(salary * 0.02);
+                      setBpjsTkJhtCompany(salary * 0.037);
+                      setBpjsTkJpEmployee(salary * 0.01);
+                      setBpjsTkJpCompany(salary * 0.02);
+                      setBpjsTkJkk(salary * 0.0024);
+                      setBpjsTkJkm(salary * 0.003);
+                      const allowances = incentive + transportationFee;
+                      const taxableIncome = (salary + allowances) * 12;
+                      const newPph21 = taxableIncome <= 60000000 ? 0 : (taxableIncome * 0.05) / 12;
+                      setPph21(newPph21);
+                      const deductions = (salary * 0.01) + (salary * 0.02) + (salary * 0.01) + newPph21;
+                      setNetSalary(salary + allowances - deductions);
+                    }}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="incentive">Insentif (Rp)</Label>
+                  <Input
+                    id="incentive"
+                    type="number"
+                    value={incentive}
+                    onChange={(e) => {
+                      const newIncentive = Number(e.target.value);
+                      setIncentive(newIncentive);
+                      const allowances = newIncentive + transportationFee;
+                      const taxableIncome = (basicSalary + allowances) * 12;
+                      const newPph21 = taxableIncome <= 60000000 ? 0 : (taxableIncome * 0.05) / 12;
+                      setPph21(newPph21);
+                      const deductions = bpjsKesEmployee + bpjsTkJhtEmployee + bpjsTkJpEmployee + newPph21;
+                      setNetSalary(basicSalary + allowances - deductions);
+                    }}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="transportation-fee">Biaya Transportasi (Rp)</Label>
+                  <Input
+                    id="transportation-fee"
+                    type="number"
+                    value={transportationFee}
+                    onChange={(e) => {
+                      const newFee = Number(e.target.value);
+                      setTransportationFee(newFee);
+                      const allowances = incentive + newFee;
+                      const taxableIncome = (basicSalary + allowances) * 12;
+                      const newPph21 = taxableIncome <= 60000000 ? 0 : (taxableIncome * 0.05) / 12;
+                      setPph21(newPph21);
+                      const deductions = bpjsKesEmployee + bpjsTkJhtEmployee + bpjsTkJpEmployee + newPph21;
+                      setNetSalary(basicSalary + allowances - deductions);
+                    }}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="bpjs-kes-employee">BPJS Kesehatan Karyawan (Rp)</Label>
+                  <Input
+                    id="bpjs-kes-employee"
+                    type="number"
+                    value={bpjsKesEmployee}
+                    onChange={(e) => {
+                      const value = Number(e.target.value);
+                      setBpjsKesEmployee(value);
+                      const deductions = value + bpjsTkJhtEmployee + bpjsTkJpEmployee + pph21;
+                      setNetSalary(basicSalary + incentive + transportationFee - deductions);
+                    }}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="bpjs-kes-company">BPJS Kesehatan Perusahaan (Rp)</Label>
+                  <Input
+                    id="bpjs-kes-company"
+                    type="number"
+                    value={bpjsKesCompany}
+                    onChange={(e) => setBpjsKesCompany(Number(e.target.value))}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="bpjs-tk-jht-employee">BPJS TK JHT Karyawan (Rp)</Label>
+                  <Input
+                    id="bpjs-tk-jht-employee"
+                    type="number"
+                    value={bpjsTkJhtEmployee}
+                    onChange={(e) => {
+                      const value = Number(e.target.value);
+                      setBpjsTkJhtEmployee(value);
+                      const deductions = bpjsKesEmployee + value + bpjsTkJpEmployee + pph21;
+                      setNetSalary(basicSalary + incentive + transportationFee - deductions);
+                    }}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="bpjs-tk-jht-company">BPJS TK JHT Perusahaan (Rp)</Label>
+                  <Input
+                    id="bpjs-tk-jht-company"
+                    type="number"
+                    value={bpjsTkJhtCompany}
+                    onChange={(e) => setBpjsTkJhtCompany(Number(e.target.value))}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="bpjs-tk-jkk">BPJS TK JKK (Rp)</Label>
+                  <Input
+                    id="bpjs-tk-jkk"
+                    type="number"
+                    value={bpjsTkJkk}
+                    onChange={(e) => setBpjsTkJkk(Number(e.target.value))}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="bpjs-tk-jkm">BPJS TK JKM (Rp)</Label>
+                  <Input
+                    id="bpjs-tk-jkm"
+                    type="number"
+                    value={bpjsTkJkm}
+                    onChange={(e) => setBpjsTkJkm(Number(e.target.value))}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="bpjs-tk-jp-employee">BPJS TK JP Karyawan (Rp)</Label>
+                  <Input
+                    id="bpjs-tk-jp-employee"
+                    type="number"
+                    value={bpjsTkJpEmployee}
+                    onChange={(e) => {
+                      const value = Number(e.target.value);
+                      setBpjsTkJpEmployee(value);
+                      const deductions = bpjsKesEmployee + bpjsTkJhtEmployee + value + pph21;
+                      setNetSalary(basicSalary + incentive + transportationFee - deductions);
+                    }}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="bpjs-tk-jp-company">BPJS TK JP Perusahaan (Rp)</Label>
+                  <Input
+                    id="bpjs-tk-jp-company"
+                    type="number"
+                    value={bpjsTkJpCompany}
+                    onChange={(e) => setBpjsTkJpCompany(Number(e.target.value))}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="pph21">PPh 21 (Rp)</Label>
+                  <Input
+                    id="pph21"
+                    type="number"
+                    value={pph21}
+                    onChange={(e) => {
+                      const value = Number(e.target.value);
+                      setPph21(value);
+                      const deductions = bpjsKesEmployee + bpjsTkJhtEmployee + bpjsTkJpEmployee + value;
+                      setNetSalary(basicSalary + incentive + transportationFee - deductions);
+                    }}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="net-salary">Gaji Bersih (Rp)</Label>
+                  <Input
+                    id="net-salary"
+                    type="number"
+                    value={netSalary}
+                    readOnly
                   />
                 </div>
               </div>
-              <DialogFooter>
+              <DialogFooter className="flex justify-between">
                 <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                   Batal
                 </Button>
-                <Button onClick={handleProcessPayroll}>Proses Penggajian</Button>
+                <div className="flex gap-2">
+                  <Button variant="secondary" onClick={handleSavePayroll}>
+                    Simpan
+                  </Button>
+                  <Button onClick={handleProcessPayroll}>Proses Penggajian</Button>
+                </div>
               </DialogFooter>
             </DialogContent>
           </Dialog>
