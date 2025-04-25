@@ -38,8 +38,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Tables, TablesInsert } from "@/integrations/supabase/types";
 import { format } from "date-fns";
-import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
 
 // Define interface for enriched payroll (not a database table)
 interface EnrichedPayroll extends Tables<"payroll"> {
@@ -53,7 +51,7 @@ interface EmployeeData {
   last_name: string;
   incentive: number | null;
   transportation_fee: number | null;
-  basic_salary: number | null; // Added basic_salary
+  basic_salary: number | null;
 }
 
 export default function Payroll() {
@@ -106,18 +104,29 @@ export default function Payroll() {
           variant: "destructive",
         });
       } finally {
-      setIsLoading(false);
+        setIsLoading(false);
       }
     };
     fetchData();
   }, [toast]);
 
-  // Aggregate data for cards (April 2025)
-  const aprilPayroll = payrollData.filter((p) => p.period_start.startsWith("2025-04"));
-  const totalEmployees = new Set(aprilPayroll.map((p) => p.employee_id)).size;
-  const totalSalary = aprilPayroll.reduce((sum, p) => sum + (p.basic_salary || 0), 0);
-  const totalPPh21 = aprilPayroll.reduce((sum, p) => sum + (p.pph21 || 0), 0);
-  const totalBPJS = aprilPayroll.reduce(
+  // Determine the most recent period dynamically
+  const mostRecentPeriod = payrollData.length > 0
+    ? payrollData.reduce((latest, current) =>
+        new Date(current.period_start) > new Date(latest.period_start) ? current : latest
+      ).period_start
+    : null;
+
+  // Filter payroll data for the most recent period
+  const recentPayroll = mostRecentPeriod
+    ? payrollData.filter((p) => p.period_start === mostRecentPeriod)
+    : [];
+
+  // Calculate summary metrics for the most recent period
+  const totalEmployees = new Set(recentPayroll.map((p) => p.employee_id)).size;
+  const totalSalary = recentPayroll.reduce((sum, p) => sum + (p.basic_salary || 0), 0);
+  const totalPPh21 = recentPayroll.reduce((sum, p) => sum + (p.pph21 || 0), 0);
+  const totalBPJS = recentPayroll.reduce(
     (sum, p) =>
       sum +
       (p.bpjs_kes_employee || 0) +
@@ -130,6 +139,11 @@ export default function Payroll() {
       (p.bpjs_tk_jkm || 0),
     0
   );
+
+  // Format the most recent period for display
+  const displayPeriod = mostRecentPeriod
+    ? format(new Date(mostRecentPeriod), "MMMM yyyy")
+    : "Tidak ada data";
 
   // Handle payroll processing
   const handleProcessPayroll = async () => {
@@ -170,7 +184,7 @@ export default function Payroll() {
 
       // Calculate payroll for each employee
       const payrollRecords: TablesInsert<"payroll">[] = employees.map((employee) => {
-        const basicSalary = employee.basic_salary ?? 0; // Use employee's basic_salary, default to 0 if null
+        const basicSalary = employee.basic_salary ?? 0;
         if (basicSalary === 0) {
           throw new Error(`Gaji pokok untuk karyawan ${employee.first_name} ${employee.last_name || ""} belum diatur.`);
         }
@@ -308,7 +322,7 @@ export default function Payroll() {
             description: `Penggajian periode ${format(periodDate, "MMMM yyyy")} untuk ${new Set(payrollData.filter((p) => p.period_start === startDate).map((p) => p.employee_id)).size} karyawan.`,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-            api_key_id: null, // Adjust if you have an API key requirement
+            api_key_id: null,
           };
         })
         .filter((event): event is TablesInsert<"calendar_events"> => event !== null);
@@ -345,7 +359,7 @@ export default function Payroll() {
   };
 
   // Handle export to Excel
-  const handleExportToExcel = () => {
+  const handleExportToExcel = async () => {
     try {
       // Prepare data for export by mapping the payroll data to a flat structure
       const exportData = payrollData.map((row) => {
@@ -391,6 +405,10 @@ export default function Payroll() {
         };
       });
 
+      // Dynamically import XLSX and file-saver to avoid server-side issues
+      const XLSX = await import("xlsx");
+      const { saveAs } = await import("file-saver");
+
       // Create a worksheet from the data
       const worksheet = XLSX.utils.json_to_sheet(exportData);
 
@@ -433,10 +451,10 @@ export default function Payroll() {
             <CardTitle className="text-sm font-medium">Periode Berjalan</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">April 2025</div>
+            <div className="text-2xl font-bold">{displayPeriod}</div>
             <p className="text-xs text-muted-foreground">
-              {aprilPayroll.length > 0
-                ? aprilPayroll[0].payment_status === "paid"
+              {recentPayroll.length > 0
+                ? recentPayroll[0].payment_status === "paid"
                   ? "Selesai"
                   : "Belum Diproses"
                 : "Belum Diproses"}
