@@ -10,7 +10,12 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DollarSign, Users, Calendar, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { Chart } from "@/components/ui/chart";
+import { 
+  ChartContainer, 
+  ChartTooltip, 
+  ChartTooltipContent 
+} from "@/components/ui/chart";
+import { Line } from "recharts";
 
 export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
@@ -103,20 +108,19 @@ export default function Dashboard() {
   }, []);
 
   // Create chart data for trend visualization
-  const chartData = {
-    labels: stats.trends.map(t => {
-      const [year, month] = t.date.split('-');
-      return `${month}/${year.substring(2)}`;
-    }),
-    datasets: [
-      {
-        label: 'Total Payroll',
-        data: stats.trends.map(t => t.value),
-        borderColor: 'rgb(99, 102, 241)',
-        backgroundColor: 'rgba(99, 102, 241, 0.5)',
-        tension: 0.2,
-      }
-    ]
+  const chartData = stats.trends.map(trend => ({
+    date: trend.date,
+    value: trend.value
+  }));
+
+  const chartConfig = {
+    payroll: {
+      label: "Total Payroll",
+      theme: {
+        light: "hsl(var(--primary))",
+        dark: "hsl(var(--primary))",
+      },
+    },
   };
 
   return (
@@ -229,32 +233,35 @@ export default function Dashboard() {
                 <div className="h-72 w-full bg-muted/20 animate-pulse rounded-md"></div>
               ) : stats.trends.length > 0 ? (
                 <div className="h-72">
-                  <Chart 
-                    type="line" 
-                    data={chartData} 
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      scales: {
-                        y: {
-                          beginAtZero: true,
-                          ticks: {
-                            callback: (value) => `Rp${(value as number).toLocaleString('id-ID')}`
-                          }
-                        }
-                      },
-                      plugins: {
-                        tooltip: {
-                          callbacks: {
-                            label: (context) => {
-                              const value = context.raw as number;
-                              return `Rp${value.toLocaleString('id-ID')}`;
-                            }
-                          }
-                        }
+                  <ChartContainer
+                    config={chartConfig}
+                    className="h-full"
+                  >
+                    <Line
+                      data={chartData}
+                      dataKey="value"
+                      name="payroll"
+                      stroke="hsl(var(--primary))"
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={{
+                        r: 6,
+                        style: { fill: "hsl(var(--primary))" }
+                      }}
+                    />
+                    <ChartTooltip
+                      content={
+                        <ChartTooltipContent
+                          labelKey="date"
+                          labelFormatter={(value) => {
+                            const [year, month] = value.split('-');
+                            return `${month}/${year.substring(2)}`;
+                          }}
+                          formatter={(value) => `Rp${value.toLocaleString('id-ID')}`}
+                        />
                       }
-                    }}
-                  />
+                    />
+                  </ChartContainer>
                 </div>
               ) : (
                 <div className="h-72 flex items-center justify-center text-muted-foreground">
