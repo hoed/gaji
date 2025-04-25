@@ -13,6 +13,13 @@ export default function Reports() {
   const [reportType, setReportType] = useState<"payroll" | "attendance" | "employee">("payroll");
   const [month, setMonth] = useState<string>("2025-04");
   const [isLoading, setIsLoading] = useState(false);
+  const [summaryData, setSummaryData] = useState({
+    totalPayroll: 0,
+    totalPph21: 0,
+    totalBpjs: 0,
+    employeeCount: 0,
+    attendanceCount: 0,
+  });
 
   useEffect(() => {
     const checkSession = async () => {
@@ -22,7 +29,65 @@ export default function Reports() {
       }
     };
     checkSession();
-  }, []);
+    fetchSummaryData();
+  }, [month]);
+
+  const fetchSummaryData = async () => {
+    try {
+      const [year, monthNum] = month.split("-");
+      const startDate = `${year}-${monthNum}-01`;
+      const endDate = new Date(parseInt(year), parseInt(monthNum), 0).toISOString().split("T")[0];
+
+      // Fetch payroll summary
+      const { data: payrollData, error: payrollError } = await supabase
+        .from("payroll")
+        .select("net_salary, pph21, bpjs_kes_employee, bpjs_kes_company, bpjs_tk_jht_employee, bpjs_tk_jht_company, bpjs_tk_jkk, bpjs_tk_jkm, bpjs_tk_jp_employee, bpjs_tk_jp_company")
+        .gte("period_start", startDate)
+        .lte("period_end", endDate);
+
+      if (payrollError) throw payrollError;
+
+      const totalPayroll = payrollData?.reduce((sum: number, record: any) => sum + (record.net_salary || 0), 0) || 0;
+      const totalPph21 = payrollData?.reduce((sum: number, record: any) => sum + (record.pph21 || 0), 0) || 0;
+      const totalBpjs = payrollData?.reduce((sum: number, record: any) => {
+        return sum + 
+          (record.bpjs_kes_employee || 0) +
+          (record.bpjs_kes_company || 0) +
+          (record.bpjs_tk_jht_employee || 0) +
+          (record.bpjs_tk_jht_company || 0) +
+          (record.bpjs_tk_jkk || 0) +
+          (record.bpjs_tk_jkm || 0) +
+          (record.bpjs_tk_jp_employee || 0) +
+          (record.bpjs_tk_jp_company || 0);
+      }, 0) || 0;
+
+      // Fetch employee count
+      const { count: employeeCount, error: employeeError } = await supabase
+        .from("employees")
+        .select("*", { count: "exact", head: true });
+
+      if (employeeError) throw employeeError;
+
+      // Fetch attendance count for the month
+      const { count: attendanceCount, error: attendanceError } = await supabase
+        .from("attendance")
+        .select("*", { count: "exact", head: true })
+        .gte("date", startDate)
+        .lte("date", endDate);
+
+      if (attendanceError) throw attendanceError;
+
+      setSummaryData({
+        totalPayroll,
+        totalPph21,
+        totalBpjs,
+        employeeCount: employeeCount || 0,
+        attendanceCount: attendanceCount || 0,
+      });
+    } catch (error: any) {
+      toast.error(`Gagal mengambil data ringkasan: ${error.message}`);
+    }
+  };
 
   const fetchPayrollReport = async () => {
     setIsLoading(true);
@@ -46,7 +111,7 @@ export default function Reports() {
       const employeeIds = payrollData.map((record: Tables<"payroll">) => record.employee_id);
       const { data: employeesData, error: employeesError } = await supabase
         .from("employees")
-        .select("*, positions(name)") // Join with positions to get position name
+        .select("*, positions(name)")
         .in("id", employeeIds);
 
       if (employeesError) throw employeesError;
@@ -83,7 +148,7 @@ export default function Reports() {
       payrollData.forEach((record: Tables<"payroll">) => {
         const employee = employeesData.find((emp: any) => emp.id === record.employee_id);
         const department = departmentsData.find((dept: Tables<"departments">) => dept.id === employee?.department_id);
-        const positionName = employee?.positions?.name || "Unknown"; // Access position name
+        const positionName = employee?.positions?.name || "Unknown";
 
         csvRows.push([
           `${employee?.first_name} ${employee?.last_name || ""}`,
@@ -169,7 +234,7 @@ export default function Reports() {
     try {
       const { data: employeesData, error: employeesError } = await supabase
         .from("employees")
-        .select("*, positions(name), departments(name)"); // Join with positions and departments
+        .select("*, positions(name), departments(name)");
 
       if (employeesError) throw employeesError;
       if (!employeesData || employeesData.length === 0) {
@@ -190,8 +255,8 @@ export default function Reports() {
       ];
 
       employeesData.forEach((employee: any) => {
-        const positionName = employee.positions?.name || "Unknown"; // Access position name
-        const departmentName = employee.departments?.name || "Unknown"; // Access department name
+        const positionName = employee.positions?.name || "Unknown";
+        const departmentName = employee.departments?.name || "Unknown";
         csvRows.push([
           `${employee.first_name} ${employee.last_name || ""}`,
           employee.email || "",
@@ -236,9 +301,63 @@ export default function Reports() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Laporan</h1>
-        <p className="text-muted-foreground">Buat dan unduh laporan untuk penggajian, kehadiran, atau karyawan.</p>
+        <p className="text-muted-foreground">Ringkasan dan laporan untuk penggajian, kehadiran, dan karyawan.</p>
       </div>
 
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Total Penggajian</CardTitle>
+            <CardDescription>Periode {month}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{summaryData.totalPayroll.toLocaleString("id-ID", { style: "currency", currency: "IDR" })}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Total PPh 21</CardTitle>
+            <CardDescription>Periode {month}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{summaryData.totalPph21.toLocaleString("id-ID", { style: "currency", currency: "IDR" })}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Total BPJS</CardTitle>
+            <CardDescription>Periode {month}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{summaryData.totalBpjs.toLocaleString("id-ID", { style: "currency", currency: "IDR" })}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Jumlah Karyawan</CardTitle>
+            <CardDescription>Total Aktif</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{summaryData.employeeCount}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Rekaman Kehadiran</CardTitle>
+            <CardDescription>Periode {month}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{summaryData.attendanceCount}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Report Generation Section */}
       <Card>
         <CardHeader>
           <CardTitle>Buat Laporan</CardTitle>
