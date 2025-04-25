@@ -8,6 +8,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Tables } from "@/integrations/supabase/types";
+import { Bar, Pie } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement,
+} from "chart.js";
+
+// Register Chart.js components
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement);
 
 export default function Reports() {
   const [reportType, setReportType] = useState<"payroll" | "attendance" | "employee">("payroll");
@@ -20,6 +34,7 @@ export default function Reports() {
     employeeCount: 0,
     attendanceCount: 0,
   });
+  const [departmentDistribution, setDepartmentDistribution] = useState<{ [key: string]: number }>({});
 
   useEffect(() => {
     const checkSession = async () => {
@@ -30,6 +45,7 @@ export default function Reports() {
     };
     checkSession();
     fetchSummaryData();
+    fetchDepartmentDistribution();
   }, [month]);
 
   const fetchSummaryData = async () => {
@@ -86,6 +102,26 @@ export default function Reports() {
       });
     } catch (error: any) {
       toast.error(`Gagal mengambil data ringkasan: ${error.message}`);
+    }
+  };
+
+  const fetchDepartmentDistribution = async () => {
+    try {
+      const { data: employeesData, error: employeesError } = await supabase
+        .from("employees")
+        .select("department_id, departments(name)");
+
+      if (employeesError) throw employeesError;
+
+      const distribution: { [key: string]: number } = {};
+      employeesData.forEach((employee: any) => {
+        const deptName = employee.departments?.name || "Unknown";
+        distribution[deptName] = (distribution[deptName] || 0) + 1;
+      });
+
+      setDepartmentDistribution(distribution);
+    } catch (error: any) {
+      toast.error(`Gagal mengambil distribusi departemen: ${error.message}`);
     }
   };
 
@@ -297,11 +333,90 @@ export default function Reports() {
     }
   };
 
+  // Bar Chart Data (Payroll Breakdown)
+  const barChartData = {
+    labels: ["Net Salary", "PPh 21", "Total BPJS"],
+    datasets: [
+      {
+        label: "Amount (IDR)",
+        data: [summaryData.totalPayroll, summaryData.totalPph21, summaryData.totalBpjs],
+        backgroundColor: ["#4CAF50", "#F44336", "#2196F3"],
+        borderColor: ["#388E3C", "#D32F2F", "#1976D2"],
+        borderWidth: 1,
+      },
+    ],
+  };
+
+  const barChartOptions = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: "top" as const,
+      },
+      title: {
+        display: true,
+        text: `Payroll Breakdown for ${month}`,
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        title: {
+          display: true,
+          text: "Amount (IDR)",
+        },
+      },
+    },
+  };
+
+  // Pie Chart Data (Department Distribution)
+  const pieChartData = {
+    labels: Object.keys(departmentDistribution),
+    datasets: [
+      {
+        label: "Employees",
+        data: Object.values(departmentDistribution),
+        backgroundColor: [
+          "#FF6384",
+          "#36A2EB",
+          "#FFCE56",
+          "#4BC0C0",
+          "#9966FF",
+          "#FF9F40",
+        ],
+        borderColor: [
+          "#FF6384",
+          "#36A2EB",
+          "#FFCE56",
+          "#4BC0C0",
+          "#9966FF",
+          "#FF9F40",
+        ],
+        borderWidth: 1,
+      },
+    ],
+  };
+
+  const pieChartOptions = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: "top" as const,
+      },
+      title: {
+        display: true,
+        text: "Employee Distribution by Department",
+      },
+    },
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Laporan</h1>
-        <p className="text-muted-foreground">Ringkasan dan laporan untuk penggajian, kehadiran, dan karyawan.</p>
+        <p className="text-muted-foreground">Ringkasan dan laporan untuk penggajian, kehadiran, dan kary 
+
+kapan saja, dan karyawan.</p>
       </div>
 
       {/* Summary Cards */}
@@ -353,6 +468,37 @@ export default function Reports() {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{summaryData.attendanceCount}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Bar Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Breakdown Penggajian</CardTitle>
+            <CardDescription>Periode {month}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-96">
+              <Bar data={barChartData} options={barChartOptions} />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Pie Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Distribusi Karyawan per Departemen</CardTitle>
+            <CardDescription>Total Karyawan: {summaryData.employeeCount}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-96 flex justify-center">
+              <div className="w-80">
+                <Pie data={pieChartData} options={pieChartOptions} />
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
