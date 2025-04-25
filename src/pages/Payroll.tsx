@@ -172,12 +172,15 @@ export default function Payroll() {
     setSelectedEmployeeId(employeeId);
     const employee = employees.find(emp => emp.id === employeeId);
     if (employee) {
-      setBasicSalary(employee.basic_salary ?? 0);
-      setIncentive(employee.incentive ?? 0);
-      setTransportationFee(employee.transportation_fee ?? 0);
+      const salary = employee.basic_salary ?? 0;
+      const employeeIncentive = employee.incentive ?? 0;
+      const employeeTransportationFee = employee.transportation_fee ?? 0;
+
+      setBasicSalary(salary);
+      setIncentive(employeeIncentive);
+      setTransportationFee(employeeTransportationFee);
 
       // Recalculate BPJS contributions based on basic salary
-      const salary = employee.basic_salary ?? 0;
       setBpjsKesEmployee(salary * 0.01); // 1% employee contribution
       setBpjsKesCompany(salary * 0.04); // 4% company contribution
       setBpjsTkJhtEmployee(salary * 0.02); // 2% employee contribution
@@ -188,7 +191,7 @@ export default function Payroll() {
       setBpjsTkJkm(salary * 0.003); // 0.3% company contribution
 
       // Recalculate PPh21 and net salary
-      const allowances = (employee.incentive ?? 0) + (employee.transportation_fee ?? 0);
+      const allowances = employeeIncentive + employeeTransportationFee;
       const taxableIncome = (salary + allowances) * 12; // Annualize
       const newPph21 = taxableIncome <= 60000000 ? 0 : (taxableIncome * 0.05) / 12; // 5% tax if above 60M annually
       setPph21(newPph21);
@@ -213,7 +216,7 @@ export default function Payroll() {
   };
 
   // Shared validation and record creation logic
-  const validateAndCreatePayrollRecord = async (status: "paid" | "pending") => {
+  const validateAndCreatePayrollRecord = async (status: "pending" | "success") => {
     // Validate required fields
     if (!selectedPeriod) {
       toast({
@@ -320,10 +323,10 @@ export default function Payroll() {
     setPayrollData(enrichedData);
   };
 
-  // Handle payroll processing (status: paid)
+  // Handle payroll processing (status: success)
   const handleProcessPayroll = async () => {
     try {
-      const result = await validateAndCreatePayrollRecord("paid");
+      const result = await validateAndCreatePayrollRecord("success");
       if (!result) return;
 
       const { payrollRecord, periodStart } = result;
@@ -341,7 +344,7 @@ export default function Payroll() {
         variant: "default",
       });
 
-      // Refresh payroll data
+      // Refresh payroll data to update summary cards
       await refreshPayrollData();
 
       // Reset form and close dialog
@@ -393,7 +396,7 @@ export default function Payroll() {
         variant: "default",
       });
 
-      // Refresh payroll data
+      // Refresh payroll data to reflect the new entry
       await refreshPayrollData();
 
       // Reset employee-related fields to allow saving another record
@@ -539,7 +542,7 @@ export default function Payroll() {
         return {
           Nama: row.full_name,
           Periode: format(new Date(row.period_start), "MMMM yyyy"),
-          Status: row.payment_status === "paid" ? "Selesai" : "Belum Diproses",
+          Status: row.payment_status === "success" ? "Selesai" : "Belum Diproses",
           "Jumlah Karyawan": periodEmployees,
           "Total Gaji": `Rp ${periodSalary.toLocaleString("id-ID")}`,
           "PPh 21": `Rp ${periodPPh21.toLocaleString("id-ID")}`,
@@ -597,7 +600,7 @@ export default function Payroll() {
             <div className="text-2xl font-bold">{displayPeriod}</div>
             <p className="text-xs text-muted-foreground">
               {recentPayroll.length > 0
-                ? recentPayroll[0].payment_status === "paid"
+                ? recentPayroll[0].payment_status === "success"
                   ? "Selesai"
                   : "Belum Diproses"
                 : "Belum Diproses"}
@@ -707,24 +710,7 @@ export default function Payroll() {
                     id="basic-salary"
                     type="number"
                     value={basicSalary}
-                    onChange={(e) => {
-                      const salary = Number(e.target.value);
-                      setBasicSalary(salary);
-                      setBpjsKesEmployee(salary * 0.01);
-                      setBpjsKesCompany(salary * 0.04);
-                      setBpjsTkJhtEmployee(salary * 0.02);
-                      setBpjsTkJhtCompany(salary * 0.037);
-                      setBpjsTkJpEmployee(salary * 0.01);
-                      setBpjsTkJpCompany(salary * 0.02);
-                      setBpjsTkJkk(salary * 0.0024);
-                      setBpjsTkJkm(salary * 0.003);
-                      const allowances = incentive + transportationFee;
-                      const taxableIncome = (salary + allowances) * 12;
-                      const newPph21 = taxableIncome <= 60000000 ? 0 : (taxableIncome * 0.05) / 12;
-                      setPph21(newPph21);
-                      const deductions = (salary * 0.01) + (salary * 0.02) + (salary * 0.01) + newPph21;
-                      setNetSalary(salary + allowances - deductions);
-                    }}
+                    readOnly
                   />
                 </div>
                 <div className="grid gap-2">
@@ -733,16 +719,7 @@ export default function Payroll() {
                     id="incentive"
                     type="number"
                     value={incentive}
-                    onChange={(e) => {
-                      const newIncentive = Number(e.target.value);
-                      setIncentive(newIncentive);
-                      const allowances = newIncentive + transportationFee;
-                      const taxableIncome = (basicSalary + allowances) * 12;
-                      const newPph21 = taxableIncome <= 60000000 ? 0 : (taxableIncome * 0.05) / 12;
-                      setPph21(newPph21);
-                      const deductions = bpjsKesEmployee + bpjsTkJhtEmployee + bpjsTkJpEmployee + newPph21;
-                      setNetSalary(basicSalary + allowances - deductions);
-                    }}
+                    readOnly
                   />
                 </div>
                 <div className="grid gap-2">
@@ -751,16 +728,7 @@ export default function Payroll() {
                     id="transportation-fee"
                     type="number"
                     value={transportationFee}
-                    onChange={(e) => {
-                      const newFee = Number(e.target.value);
-                      setTransportationFee(newFee);
-                      const allowances = incentive + newFee;
-                      const taxableIncome = (basicSalary + allowances) * 12;
-                      const newPph21 = taxableIncome <= 60000000 ? 0 : (taxableIncome * 0.05) / 12;
-                      setPph21(newPph21);
-                      const deductions = bpjsKesEmployee + bpjsTkJhtEmployee + bpjsTkJpEmployee + newPph21;
-                      setNetSalary(basicSalary + allowances - deductions);
-                    }}
+                    readOnly
                   />
                 </div>
                 <div className="grid gap-2">
@@ -987,12 +955,12 @@ export default function Payroll() {
                       <TableCell>
                         <span
                           className={
-                            row.payment_status === "paid"
+                            row.payment_status === "success"
                               ? "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-green-100 text-green-800"
                               : "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-800"
                           }
                         >
-                          {row.payment_status === "paid" ? "Selesai" : "Belum Diproses"}
+                          {row.payment_status === "success" ? "Selesai" : "Belum Diproses"}
                         </span>
                       </TableCell>
                       <TableCell>{periodEmployees}</TableCell>
