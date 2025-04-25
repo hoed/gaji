@@ -6,8 +6,10 @@ import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { FileText, Pencil, Trash2 } from "lucide-react";
+import { FileText, Pencil, Trash2, FileSpreadsheet } from "lucide-react";
 import AddEmployeeDialog from "./AddEmployeeDialog";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
 
 // Define interface for joined employee data
 interface EmployeeWithRelations extends Tables<"employees"> {
@@ -95,6 +97,60 @@ export default function Employees() {
     }
   };
 
+  const handleExportToExcel = () => {
+    try {
+      // Prepare data for export by mapping the employee data to a flat structure
+      const exportData = employees.map((employee) => ({
+        Nama: `${employee.first_name} ${employee.last_name || ""}`,
+        Email: employee.email || "N/A",
+        Telepon: employee.phone || "N/A",
+        "Tanggal Lahir": employee.birth_date
+          ? new Date(employee.birth_date).toLocaleDateString("id-ID")
+          : "N/A",
+        "Tanggal Mulai": employee.hire_date
+          ? new Date(employee.hire_date).toLocaleDateString("id-ID")
+          : "N/A",
+        Departemen: employee.departments?.name || "Unknown",
+        Posisi: employee.positions?.name || "Unknown",
+        BPJS: employee.bpjs_account || "N/A",
+        NPWP: employee.npwp_account || "N/A",
+        "Gaji Pokok": employee.payroll?.basic_salary?.toLocaleString("id-ID", {
+          style: "currency",
+          currency: "IDR",
+        }) || "N/A",
+        Insentif: (employee.incentive || 0).toLocaleString("id-ID", {
+          style: "currency",
+          currency: "IDR",
+        }),
+        "Biaya Transportasi": (employee.transportation_fee || 0).toLocaleString("id-ID", {
+          style: "currency",
+          currency: "IDR",
+        }),
+        "Nama Bank": employee.bank_name || "N/A",
+        "Nomor Rekening": employee.bank_account || "N/A",
+      }));
+
+      // Create a worksheet from the data
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+      // Create a workbook and append the worksheet
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Employees");
+
+      // Generate the Excel file as a buffer
+      const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+
+      // Create a Blob for the file and trigger the download
+      const blob = new Blob([excelBuffer], { type: "application/octet-stream" });
+      saveAs(blob, "employees.xlsx");
+
+      toast.success("Data karyawan berhasil diekspor ke Excel");
+    } catch (error: any) {
+      console.error("Error exporting to Excel:", error);
+      toast.error(`Gagal mengekspor data ke Excel: ${error.message}`);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -102,9 +158,15 @@ export default function Employees() {
           <h1 className="text-3xl font-bold">Karyawan</h1>
           <p className="text-muted-foreground">Kelola data karyawan dan penggajian</p>
         </div>
-        <Button onClick={() => setIsAddDialogOpen(true)} className="flex items-center gap-2">
-          <span>Tambah Karyawan</span>
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={handleExportToExcel} className="flex items-center gap-2">
+            <FileSpreadsheet size={16} />
+            <span>Ekspor ke Excel</span>
+          </Button>
+          <Button onClick={() => setIsAddDialogOpen(true)} className="flex items-center gap-2">
+            <span>Tambah Karyawan</span>
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -152,7 +214,7 @@ export default function Employees() {
                     <TableHead>NPWP</TableHead>
                     <TableHead>Gaji Pokok</TableHead>
                     <TableHead>Insentif</TableHead>
-                    <TableHead>Uang Transport</TableHead>
+                    <TableHead>Biaya Transportasi</TableHead>
                     <TableHead>Nama Bank</TableHead>
                     <TableHead>Nomor Rekening</TableHead>
                     <TableHead>Aksi</TableHead>
