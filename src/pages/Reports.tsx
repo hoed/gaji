@@ -349,6 +349,7 @@ export default function Reports() {
           <TabsTrigger value="tax">Pajak</TabsTrigger>
           <TabsTrigger value="bpjs">BPJS</TabsTrigger>
         </TabsList>
+        </Tabs>
         
         <TabsContent value="summary" className="mt-6">
           <div className="grid gap-4 md:grid-cols-2">
