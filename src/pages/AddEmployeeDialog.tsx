@@ -345,7 +345,7 @@ export default function AddEmployeeDialog({
               />
             </div>
             <div>
-              <Label htmlFor="transportation_fee">Biaya Transportasi (Rp)</Label>
+              <Label htmlFor="transportation_fee">Uang Transport (Rp)</Label>
               <Input
                 id="transportation_fee"
                 name="transportation_fee"

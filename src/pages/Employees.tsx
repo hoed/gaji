@@ -152,7 +152,7 @@ export default function Employees() {
                     <TableHead>NPWP</TableHead>
                     <TableHead>Gaji Pokok</TableHead>
                     <TableHead>Insentif</TableHead>
-                    <TableHead>Biaya Transportasi</TableHead>
+                    <TableHead>Uang Transport</TableHead>
                     <TableHead>Nama Bank</TableHead>
                     <TableHead>Nomor Rekening</TableHead>
                     <TableHead>Aksi</TableHead>
