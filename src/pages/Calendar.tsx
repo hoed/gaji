@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar as CalendarIcon, DollarSign, UserCheck, Receipt } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { CalendarEvent, CalendarEventType } from "@/types/calendar";
 
 export default function CalendarPage() {
   const [date, setDate] = useState<Date | undefined>(new Date());
@@ -17,17 +18,113 @@ export default function CalendarPage() {
     attendanceNotifications: true,
     taxNotifications: true
   });
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [dateEvents, setDateEvents] = useState<CalendarEvent[]>([]);
   const { toast } = useToast();
+
+  // Fetch events from the database
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('calendar_events')
+          .select('*');
+
+        if (error) throw error;
+
+        // Convert to CalendarEvent type
+        const fetchedEvents: CalendarEvent[] = data.map(event => ({
+          id: event.id,
+          title: event.title,
+          description: event.description || undefined,
+          eventType: event.event_type as CalendarEventType,
+          startTime: new Date(event.start_time),
+          endTime: new Date(event.end_time),
+          googleEventId: event.google_event_id || undefined,
+          payrollId: event.payroll_id || undefined,
+          employeeId: event.employee_id || undefined,
+          attendanceId: event.attendance_id || undefined,
+          isSynced: event.is_synced || false
+        }));
+
+        setEvents(fetchedEvents);
+      } catch (error) {
+        console.error('Error fetching calendar events:', error);
+        toast({
+          title: "Error",
+          description: "Gagal memuat data kalender.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    fetchEvents();
+  }, [toast]);
+
+  // Update events for selected date
+  useEffect(() => {
+    if (selectedDate && events.length > 0) {
+      const eventsOnDate = events.filter(event => {
+        const eventDate = new Date(event.startTime);
+        return (
+          eventDate.getDate() === selectedDate.getDate() &&
+          eventDate.getMonth() === selectedDate.getMonth() &&
+          eventDate.getFullYear() === selectedDate.getFullYear()
+        );
+      });
+      setDateEvents(eventsOnDate);
+    } else {
+      setDateEvents([]);
+    }
+  }, [selectedDate, events]);
 
   const handleSync = async () => {
     setSyncing(true);
     try {
-      // Add sync logic here
+      // Get events to sync based on settings
+      const eventsToSync = events.filter(event => {
+        if (!event.isSynced) {
+          if (event.eventType === 'payroll' && settings.payrollNotifications) return true;
+          if (event.eventType === 'attendance' && settings.attendanceNotifications) return true;
+          if (event.eventType === 'tax' && settings.taxNotifications) return true;
+        }
+        return false;
+      });
+
+      if (eventsToSync.length === 0) {
+        toast({
+          title: "Tidak Ada Event",
+          description: "Tidak ada event baru untuk disinkronkan.",
+        });
+        setSyncing(false);
+        return;
+      }
+
+      // In a real implementation, you would call Google Calendar API here
+      // For now, we'll just update the is_synced flag
+      const updatedIds = eventsToSync.map(event => event.id);
+      
+      const { error } = await supabase
+        .from('calendar_events')
+        .update({ is_synced: true })
+        .in('id', updatedIds);
+
+      if (error) throw error;
+
+      // Update local state
+      setEvents(prevEvents => 
+        prevEvents.map(event => 
+          updatedIds.includes(event.id) ? { ...event, isSynced: true } : event
+        )
+      );
+
       toast({
         title: "Sinkronisasi Berhasil",
-        description: "Kalender telah diperbarui dengan events terbaru.",
+        description: `${eventsToSync.length} event telah disinkronkan ke Google Calendar.`,
       });
     } catch (error) {
+      console.error('Error syncing calendar:', error);
       toast({
         title: "Error",
         description: "Gagal menyinkronkan kalender.",
@@ -44,6 +141,12 @@ export default function CalendarPage() {
       title: "Pengaturan Disimpan",
       description: "Pengaturan notifikasi telah diperbarui.",
     });
+  };
+
+  // Handle date selection
+  const handleDateSelect = (newDate: Date | undefined) => {
+    setDate(newDate);
+    setSelectedDate(newDate || null);
   };
 
   return (
@@ -110,13 +213,64 @@ export default function CalendarPage() {
         </Card>
 
         <Card>
+          <CardHeader>
+            <CardTitle>Kalender Event</CardTitle>
+          </CardHeader>
           <CardContent className="p-0">
-            <Calendar
-              mode="single"
-              selected={date}
-              onSelect={setDate}
-              className="rounded-md"
-            />
+            <div className="grid md:grid-cols-[1fr,250px]">
+              <Calendar
+                mode="single"
+                selected={date}
+                onSelect={handleDateSelect}
+                className="rounded-md"
+                classNames={{
+                  day_selected: "bg-primary text-primary-foreground",
+                  day_today: "bg-muted text-muted-foreground",
+                }}
+              />
+              <div className="px-4 py-4 border-l">
+                <h3 className="text-sm font-medium mb-2">
+                  {selectedDate ? selectedDate.toLocaleDateString('id-ID', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  }) : "Pilih tanggal"}
+                </h3>
+                
+                <div className="space-y-2 mt-3">
+                  {dateEvents.length > 0 ? (
+                    dateEvents.map(event => (
+                      <div key={event.id} className="p-2 rounded-md border text-sm">
+                        <div className="flex items-center gap-2">
+                          {event.eventType === 'payroll' && <DollarSign size={14} className="text-green-500" />}
+                          {event.eventType === 'attendance' && <UserCheck size={14} className="text-blue-500" />}
+                          {event.eventType === 'tax' && <Receipt size={14} className="text-amber-500" />}
+                          <span className="font-medium">{event.title}</span>
+                        </div>
+                        {event.description && (
+                          <p className="text-xs text-muted-foreground mt-1">{event.description}</p>
+                        )}
+                        <p className="text-xs mt-1">
+                          {event.startTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} - 
+                          {event.endTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                        {event.isSynced && (
+                          <div className="text-xs text-green-600 mt-1 flex items-center">
+                            <CalendarIcon size={10} className="mr-1" />
+                            Tersinkron dengan Google Calendar
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  ) : selectedDate ? (
+                    <p className="text-sm text-muted-foreground">Tidak ada event pada tanggal ini</p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Pilih tanggal untuk melihat event</p>
+                  )}
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>

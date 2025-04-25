@@ -31,7 +31,7 @@ interface DepartmentSummary {
 
 export default function Reports() {
   const [selectedMonth, setSelectedMonth] = useState("april2025");
-  const [payrollData, setPayrollData] = useState<Tables<"payroll">[]>([]);
+  const [payrollData, setPayrollData] = useState<any[]>([]);
   const [employees, setEmployees] = useState<Tables<"employees">[]>([]);
   const [departments, setDepartments] = useState<Tables<"departments">[]>([]);
   const [positions, setPositions] = useState<Tables<"positions">[]>([]);
@@ -48,9 +48,9 @@ export default function Reports() {
         const endDate = selectedMonth === "april2025" ? "2025-04-30" : 
                        selectedMonth === "maret2025" ? "2025-03-31" : "2025-02-28";
 
-        // Fetch payroll data
+        // Fetch payroll data with join to include bank details
         const { data: payrollData, error: payrollError } = await supabase
-          .from('payroll')
+          .from('payroll_summary') // Use the updated view that includes bank details
           .select('*')
           .gte('period_start', startDate)
           .lte('period_end', endDate);
@@ -100,15 +100,9 @@ export default function Reports() {
   const totalGrossSalary = payrollData.reduce((sum, p) => sum + (p.basic_salary || 0), 0);
   const totalPPh21 = payrollData.reduce((sum, p) => sum + (p.pph21 || 0), 0);
   const totalBPJSKesehatan = payrollData.reduce((sum, p) => sum + 
-    (p.bpjs_kes_employee || 0) + 
-    (p.bpjs_kes_company || 0), 0);
+    (p.bpjs_kesehatan_total || 0), 0);
   const totalBPJSKetenagakerjaan = payrollData.reduce((sum, p) => sum + 
-    (p.bpjs_tk_jht_employee || 0) + 
-    (p.bpjs_tk_jht_company || 0) + 
-    (p.bpjs_tk_jp_employee || 0) + 
-    (p.bpjs_tk_jp_company || 0) + 
-    (p.bpjs_tk_jkk || 0) + 
-    (p.bpjs_tk_jkm || 0), 0);
+    (p.bpjs_ketenagakerjaan_total || 0), 0);
   const totalNetSalary = payrollData.reduce((sum, p) => sum + (p.net_salary || 0), 0);
 
   // Aggregate data by department
@@ -134,6 +128,30 @@ export default function Reports() {
     toast({
       title: "Mengunduh laporan",
       description: `Laporan ${reportType} sedang diunduh`,
+    });
+  };
+
+  // Add a function to generate a payroll report with bank details
+  const generatePayrollReport = () => {
+    // In a real implementation, this would generate a PDF or Excel file
+    // For now, we'll just show what data would be included
+    
+    const reportData = payrollData.map(item => ({
+      name: item.full_name,
+      position: item.position,
+      department: item.department,
+      salary: item.basic_salary,
+      bank_name: item.bank_name,
+      bank_account: item.bank_account,
+      net_amount: item.net_salary,
+      payment_status: item.payment_status
+    }));
+    
+    console.log('Generating payroll report with bank details:', reportData);
+    
+    toast({
+      title: "Generating Report",
+      description: "Generating payroll report with bank account details.",
     });
   };
 
@@ -326,21 +344,76 @@ export default function Reports() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center justify-center py-8 border-2 border-dashed rounded-md">
-                  <div className="flex flex-col items-center text-muted-foreground">
-                    <FileText size={40} />
-                    <p className="mt-2">Laporan penggajian detail</p>
-                    <p className="text-sm">Berisi informasi lengkap gaji setiap karyawan</p>
-                    <Button 
-                      className="mt-4" 
-                      variant="outline"
-                      onClick={() => handleDownloadReport('penggajian detail')}
-                    >
-                      Download Laporan
-                    </Button>
+                {isLoading ? (
+                  <div className="flex justify-center items-center py-8">
+                    <svg className="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
                   </div>
-                </div>
+                ) : payrollData.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Karyawan</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bank</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No. Rekening</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gaji Bersih</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {payrollData.slice(0, 5).map((item, index) => (
+                          <tr key={index}>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.full_name}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.bank_name || 'N/A'}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.bank_account || 'N/A'}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Rp {item.net_salary?.toLocaleString('id-ID')}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                item.payment_status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                {item.payment_status === 'paid' ? 'Dibayar' : 'Pending'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {payrollData.length > 5 && (
+                      <div className="text-center py-3 text-sm text-gray-500">
+                        Menampilkan 5 dari {payrollData.length} data
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center py-8 border-2 border-dashed rounded-md">
+                    <div className="flex flex-col items-center text-muted-foreground">
+                      <FileText size={40} />
+                      <p className="mt-2">Tidak ada data penggajian</p>
+                      <p className="text-sm">Belum ada data penggajian untuk periode ini</p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
+              <CardFooter className="flex justify-between">
+                <Button
+                  variant="outline"
+                  onClick={generatePayrollReport}
+                  disabled={isLoading || payrollData.length === 0}
+                >
+                  Lihat Laporan Lengkap
+                </Button>
+                <Button 
+                  className="flex items-center gap-2"
+                  onClick={() => handleDownloadReport('penggajian detail')}
+                  disabled={isLoading || payrollData.length === 0}
+                >
+                  <Download size={16} />
+                  <span>Download Laporan</span>
+                </Button>
+              </CardFooter>
             </Card>
           </div>
         </TabsContent>
