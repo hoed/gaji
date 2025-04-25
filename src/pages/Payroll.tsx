@@ -53,6 +53,7 @@ interface EmployeeData {
   last_name: string;
   incentive: number | null;
   transportation_fee: number | null;
+  basic_salary: number | null; // Added basic_salary
 }
 
 export default function Payroll() {
@@ -80,10 +81,10 @@ export default function Payroll() {
 
         if (payrollError) throw payrollError;
 
-        // Fetch employees with incentive and transportation_fee
+        // Fetch employees with incentive, transportation_fee, and basic_salary
         const { data: employeesData, error: employeesError } = await supabase
           .from("employees")
-          .select("id, first_name, last_name, incentive, transportation_fee");
+          .select("id, first_name, last_name, incentive, transportation_fee, basic_salary");
 
         if (employeesError) throw employeesError;
         setEmployees(employeesData || []);
@@ -105,7 +106,7 @@ export default function Payroll() {
           variant: "destructive",
         });
       } finally {
-        setIsLoading(false);
+      setIsLoading(false);
       }
     };
     fetchData();
@@ -169,8 +170,12 @@ export default function Payroll() {
 
       // Calculate payroll for each employee
       const payrollRecords: TablesInsert<"payroll">[] = employees.map((employee) => {
-        const basicSalary = 5000000; // Example: Fetch from employee data or payroll settings
-        const allowances = (employee.incentive || 0) + (employee.transportation_fee || 0); // Use incentive and transportation_fee from employees table
+        const basicSalary = employee.basic_salary ?? 0; // Use employee's basic_salary, default to 0 if null
+        if (basicSalary === 0) {
+          throw new Error(`Gaji pokok untuk karyawan ${employee.first_name} ${employee.last_name || ""} belum diatur.`);
+        }
+
+        const allowances = (employee.incentive || 0) + (employee.transportation_fee || 0);
 
         // BPJS Calculations (simplified percentages)
         const bpjsKesEmployee = basicSalary * 0.01; // 1% employee contribution
