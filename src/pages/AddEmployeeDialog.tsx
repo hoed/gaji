@@ -47,6 +47,10 @@ export default function AddEmployeeDialog({
     position_id: "",
     bank_name: "",
     bank_account: "",
+    bpjs_account: "",
+    npwp_account: "",
+    incentive: "",
+    transportation_fee: "",
   });
   const [departments, setDepartments] = useState<Tables<"departments">[]>([]);
   const [positions, setPositions] = useState<Tables<"positions">[]>([]);
@@ -71,6 +75,10 @@ export default function AddEmployeeDialog({
           position_id: employee.position_id || "",
           bank_name: employee.bank_name || "",
           bank_account: employee.bank_account || "",
+          bpjs_account: employee.bpjs_account || "",
+          npwp_account: employee.npwp_account || "",
+          incentive: employee.incentive?.toString() || "",
+          transportation_fee: employee.transportation_fee?.toString() || "",
         });
       }
     }
@@ -120,6 +128,10 @@ export default function AddEmployeeDialog({
             position_id: formData.position_id || null,
             bank_name: formData.bank_name || null,
             bank_account: formData.bank_account || null,
+            bpjs_account: formData.bpjs_account || null,
+            npwp_account: formData.npwp_account || null,
+            incentive: formData.incentive ? parseFloat(formData.incentive) : null,
+            transportation_fee: formData.transportation_fee ? parseFloat(formData.transportation_fee) : null,
             updated_at: new Date().toISOString(),
           })
           .eq("id", employee.id);
@@ -139,6 +151,10 @@ export default function AddEmployeeDialog({
           position_id: formData.position_id || null,
           bank_name: formData.bank_name || null,
           bank_account: formData.bank_account || null,
+          bpjs_account: formData.bpjs_account || null,
+          npwp_account: formData.npwp_account || null,
+          incentive: formData.incentive ? parseFloat(formData.incentive) : null,
+          transportation_fee: formData.transportation_fee ? parseFloat(formData.transportation_fee) : null,
         });
 
         if (error) throw error;
@@ -157,6 +173,10 @@ export default function AddEmployeeDialog({
         position_id: "",
         bank_name: "",
         bank_account: "",
+        bpjs_account: "",
+        npwp_account: "",
+        incentive: "",
+        transportation_fee: "",
       });
     } catch (error: any) {
       toast.error(`Gagal menyimpan karyawan: ${error.message}`);
@@ -289,6 +309,48 @@ export default function AddEmployeeDialog({
                 id="bank_account"
                 name="bank_account"
                 value={formData.bank_account}
+                onChange={handleInputChange}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="bpjs_account">BPJS Account</Label>
+              <Input
+                id="bpjs_account"
+                name="bpjs_account"
+                value={formData.bpjs_account}
+                onChange={handleInputChange}
+              />
+            </div>
+            <div>
+              <Label htmlFor="npwp_account">NPWP Account</Label>
+              <Input
+                id="npwp_account"
+                name="npwp_account"
+                value={formData.npwp_account}
+                onChange={handleInputChange}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="incentive">Insentif (Rp)</Label>
+              <Input
+                id="incentive"
+                name="incentive"
+                type="number"
+                value={formData.incentive}
+                onChange={handleInputChange}
+              />
+            </div>
+            <div>
+              <Label htmlFor="transportation_fee">Biaya Transportasi (Rp)</Label>
+              <Input
+                id="transportation_fee"
+                name="transportation_fee"
+                type="number"
+                value={formData.transportation_fee}
                 onChange={handleInputChange}
               />
             </div>

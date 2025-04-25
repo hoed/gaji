@@ -7,13 +7,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { FileText, Pencil, Trash2 } from "lucide-react";
-import AddEmployeeDialog from "@/pages/AddEmployeeDialog"; // Correct import from /src/pages
+import AddEmployeeDialog from "./AddEmployeeDialog";
 
 // Define interface for joined employee data
 interface EmployeeWithRelations extends Tables<"employees"> {
   departments: Tables<"departments"> | null;
   positions: Tables<"positions"> | null;
-  payroll?: Tables<"payroll"> | null; // Latest payroll record
+  payroll?: Tables<"payroll"> | null; // Latest payroll record (for basic_salary)
 }
 
 export default function Employees() {
@@ -50,7 +50,7 @@ export default function Employees() {
         throw new Error(`Failed to fetch employees: ${employeesError.message}`);
       }
 
-      // Fetch the latest payroll for each employee
+      // Fetch the latest payroll for each employee (for basic_salary)
       const employeeIds = employeesData.map((emp: EmployeeWithRelations) => emp.id);
       const { data: payrollData, error: payrollError } = await supabase
         .from("payroll")
@@ -178,8 +178,8 @@ export default function Employees() {
                       </TableCell>
                       <TableCell>{employee.departments?.name || "Unknown"}</TableCell>
                       <TableCell>{employee.positions?.name || "Unknown"}</TableCell>
-                      <TableCell>{employee.id}-BPJS</TableCell> {/* Mock BPJS Account */}
-                      <TableCell>{employee.id}-NPWP</TableCell> {/* Mock NPWP Account */}
+                      <TableCell>{employee.bpjs_account || "N/A"}</TableCell>
+                      <TableCell>{employee.npwp_account || "N/A"}</TableCell>
                       <TableCell>
                         {employee.payroll?.basic_salary?.toLocaleString("id-ID", {
                           style: "currency",
@@ -187,13 +187,13 @@ export default function Employees() {
                         }) || "N/A"}
                       </TableCell>
                       <TableCell>
-                        {(employee.payroll?.allowances || 0).toLocaleString("id-ID", {
+                        {(employee.incentive || 0).toLocaleString("id-ID", {
                           style: "currency",
                           currency: "IDR",
                         })}
                       </TableCell>
                       <TableCell>
-                        {(employee.payroll?.allowances || 0).toLocaleString("id-ID", {
+                        {(employee.transportation_fee || 0).toLocaleString("id-ID", {
                           style: "currency",
                           currency: "IDR",
                         })}
