@@ -15,7 +15,7 @@ interface Position {
   updated_at: string;
   departments?: {
     name: string;
-  };
+  } | null;
 }
 
 export default function PositionCard() {
@@ -29,7 +29,7 @@ export default function PositionCard() {
         .select('*, departments(name)')
         .order('name');
       if (error) throw error;
-      return data as Position[];
+      return data as unknown as Position[];
     }
   });
 

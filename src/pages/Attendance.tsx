@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface AttendanceRecord {
   id: string;
@@ -29,6 +30,7 @@ export default function Attendance() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     fetchEmployees();
@@ -82,9 +84,7 @@ export default function Attendance() {
     }
   };
 
-  // Calculate attendance statistics
-  // Since the status field doesn't exist in our current schema, we'll
-  // calculate based on check-in presence
+  // Calculate attendance statistics based on check-in presence
   const presentCount = attendanceData.filter(record => record.check_in !== null).length;
   const absentCount = employees.length - presentCount;
   const lateCount = 0; // We don't have a way to determine this yet
@@ -97,8 +97,8 @@ export default function Attendance() {
         <p className="text-muted-foreground">Track employee attendance records</p>
       </div>
 
-      <div className="grid grid-cols-12 gap-6">
-        <Card className="col-span-12 md:col-span-8">
+      <div className="grid grid-cols-12 gap-4 lg:gap-6">
+        <Card className="col-span-12 lg:col-span-8">
           <CardHeader>
             <CardTitle>Daily Attendance</CardTitle>
             <CardDescription>
@@ -111,15 +111,15 @@ export default function Attendance() {
                 <div className="animate-spin h-8 w-8 border-2 border-primary rounded-full border-t-transparent"></div>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto -mx-6 px-6">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Employee</TableHead>
-                      <TableHead>Check In</TableHead>
-                      <TableHead>Check Out</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableHead className={isMobile ? "w-[120px]" : ""}>Employee</TableHead>
+                      <TableHead className={isMobile ? "w-[80px]" : ""}>Check In</TableHead>
+                      <TableHead className={isMobile ? "w-[80px]" : ""}>Check Out</TableHead>
+                      <TableHead className={isMobile ? "w-[80px]" : ""}>Status</TableHead>
+                      <TableHead className={isMobile ? "w-[80px]" : ""}>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -136,7 +136,7 @@ export default function Attendance() {
 
                       return (
                         <TableRow key={employee.id}>
-                          <TableCell>
+                          <TableCell className="font-medium truncate max-w-[120px] md:max-w-none">
                             {employee.first_name}{" "}
                             {employee.last_name || ""}
                           </TableCell>
@@ -160,6 +160,7 @@ export default function Attendance() {
                               variant="outline"
                               size="sm"
                               onClick={() => alert("Edit attendance record")}
+                              className="whitespace-nowrap"
                             >
                               Edit
                             </Button>
@@ -174,18 +175,18 @@ export default function Attendance() {
           </CardContent>
         </Card>
 
-        <div className="col-span-12 md:col-span-4 space-y-6">
+        <div className="col-span-12 lg:col-span-4 space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Select Date</CardTitle>
               <CardDescription>Choose a date to view attendance</CardDescription>
             </CardHeader>
-            <CardContent className="pb-4">
+            <CardContent className="pb-4 flex justify-center">
               <Calendar
                 mode="single"
                 selected={date}
                 onSelect={(date) => date && setDate(date)}
-                className="rounded-md border"
+                className="rounded-md border max-w-full"
                 locale={id}
               />
             </CardContent>
@@ -200,21 +201,21 @@ export default function Attendance() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col space-y-1 rounded-md border p-4">
+                <div className="flex flex-col space-y-1 rounded-md border p-3 md:p-4">
                   <span className="text-muted-foreground text-xs">Present</span>
-                  <span className="text-2xl font-bold">{presentCount}</span>
+                  <span className="text-xl md:text-2xl font-bold">{presentCount}</span>
                 </div>
-                <div className="flex flex-col space-y-1 rounded-md border p-4">
+                <div className="flex flex-col space-y-1 rounded-md border p-3 md:p-4">
                   <span className="text-muted-foreground text-xs">Absent</span>
-                  <span className="text-2xl font-bold">{absentCount}</span>
+                  <span className="text-xl md:text-2xl font-bold">{absentCount}</span>
                 </div>
-                <div className="flex flex-col space-y-1 rounded-md border p-4">
+                <div className="flex flex-col space-y-1 rounded-md border p-3 md:p-4">
                   <span className="text-muted-foreground text-xs">Late</span>
-                  <span className="text-2xl font-bold">{lateCount}</span>
+                  <span className="text-xl md:text-2xl font-bold">{lateCount}</span>
                 </div>
-                <div className="flex flex-col space-y-1 rounded-md border p-4">
+                <div className="flex flex-col space-y-1 rounded-md border p-3 md:p-4">
                   <span className="text-muted-foreground text-xs">Total</span>
-                  <span className="text-2xl font-bold">{totalEmployees}</span>
+                  <span className="text-xl md:text-2xl font-bold">{totalEmployees}</span>
                 </div>
               </div>
             </CardContent>

@@ -112,14 +112,14 @@ export default function Calendar() {
         <p className="text-muted-foreground">Manage and view your scheduled events</p>
       </div>
 
-      <div className="grid grid-cols-12 gap-6">
-        <Card className="col-span-12 md:col-span-8">
+      <div className="grid grid-cols-12 gap-4 lg:gap-6">
+        <Card className="col-span-12 lg:col-span-8">
           <CardHeader>
             <CardTitle>Calendar View</CardTitle>
             <CardDescription>Click on a date to see events.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex justify-center p-4">
+            <div className="flex justify-center p-2 md:p-4 overflow-x-auto">
               <DayPicker
                 mode="single"
                 selected={selected}
@@ -131,13 +131,15 @@ export default function Calendar() {
           </CardContent>
         </Card>
 
-        <Card className="col-span-12 md:col-span-4">
+        <Card className="col-span-12 lg:col-span-4">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-lg font-medium">
+            <CardTitle className="text-sm sm:text-lg font-medium">
               Events for{" "}
-              {selected ? format(selected, "PPP", { locale: id }) : "Selected Date"}
+              <span className="block mt-1 sm:inline sm:mt-0">
+                {selected ? format(selected, "PPP", { locale: id }) : "Selected Date"}
+              </span>
             </CardTitle>
-            <Button onClick={handleAddEvent} size="sm">
+            <Button onClick={handleAddEvent} size="sm" className="whitespace-nowrap">
               Add Event
             </Button>
           </CardHeader>
@@ -151,11 +153,11 @@ export default function Calendar() {
                 No events scheduled for this date.
               </p>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-4 overflow-y-auto max-h-[300px] pr-1">
                 {eventsForSelectedDate.map((event) => (
                   <div key={event.id} className="border rounded-lg p-3 space-y-1">
-                    <h3 className="font-medium">{event.title}</h3>
-                    <p className="text-sm text-muted-foreground">{event.description}</p>
+                    <h3 className="font-medium text-sm sm:text-base break-words">{event.title}</h3>
+                    <p className="text-xs sm:text-sm text-muted-foreground break-words">{event.description}</p>
                     <div className="text-xs text-muted-foreground">
                       {format(new Date(event.start_time), "p", { locale: id })} -{" "}
                       {format(new Date(event.end_time), "p", { locale: id })}
