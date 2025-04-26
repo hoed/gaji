@@ -16,7 +16,7 @@ export default function PositionCard() {
       const { data, error } = await supabase
         .from('positions')
         .select('*, departments(name)')
-        .order('title');
+        .order('name');
       if (error) throw error;
       return data;
     }
@@ -36,9 +36,9 @@ export default function PositionCard() {
           {positions?.map((pos) => (
             <div key={pos.id} className="flex items-center justify-between border-b pb-2">
               <div>
-                <p className="font-medium">{pos.title}</p>
+                <p className="font-medium">{pos.name}</p>
                 <p className="text-sm text-muted-foreground">
-                  Departemen: {pos.departments?.name}
+                  {pos.departments && `Departemen: ${pos.departments.name}`}
                 </p>
               </div>
             </div>

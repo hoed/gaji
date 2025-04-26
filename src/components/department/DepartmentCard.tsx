@@ -37,7 +37,10 @@ export default function DepartmentCard() {
             <div key={dept.id} className="flex items-center justify-between border-b pb-2">
               <div>
                 <p className="font-medium">{dept.name}</p>
-                <p className="text-sm text-muted-foreground">{dept.description}</p>
+                {/* Only show description if it exists */}
+                {dept.description && (
+                  <p className="text-sm text-muted-foreground">{dept.description}</p>
+                )}
               </div>
             </div>
           ))}

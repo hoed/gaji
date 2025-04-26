@@ -1,3 +1,4 @@
+
 /* src/components/AddEmployeeDialog.tsx */
 import { useState, useEffect } from "react";
 import {
@@ -19,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 
 // Define the employee type based on the database schema
@@ -34,15 +35,24 @@ interface Employee {
   bank_name: string | null;
   bank_account: string | null;
   position_id: string | null;
+  department_id: string | null;
   bpjs_account: string | null;
   npwp_account: string | null;
   incentive: number | null;
   transportation_fee: number | null;
   basic_salary: number;
+  departments?: { name: string } | null;
+  positions?: { name: string } | null;
 }
 
-// Define the position type for the dropdown
+// Define types for the dropdowns
 interface Position {
+  id: string;
+  name: string;
+  department_id: string | null;
+}
+
+interface Department {
   id: string;
   name: string;
 }
@@ -71,38 +81,53 @@ export default function AddEmployeeDialog({
   const [bankName, setBankName] = useState("");
   const [bankAccount, setBankAccount] = useState("");
   const [positionId, setPositionId] = useState("");
+  const [departmentId, setDepartmentId] = useState("");
   const [bpjsAccount, setBpjsAccount] = useState("");
   const [npwpAccount, setNpwpAccount] = useState("");
   const [incentive, setIncentive] = useState<number | "">(0);
   const [transportationFee, setTransportationFee] = useState<number | "">(0);
   const [basicSalary, setBasicSalary] = useState<number | "">(0);
   const [positions, setPositions] = useState<Position[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
 
-  // Fetch positions for the dropdown
+  // Fetch departments and positions for the dropdowns
   useEffect(() => {
-    const fetchPositions = async () => {
-      const { data, error } = await supabase
-        .from("positions")
-        .select("id, name")
-        .order("name", { ascending: true });
+    if (open) {
+      fetchDepartments();
+      fetchPositions();
+    }
+  }, [open]);
 
-      if (error) {
-        console.error("Error fetching positions:", error);
-        toast({
-          title: "Error",
-          description: "Gagal memuat data posisi.",
-          variant: "destructive",
-        });
-        return;
-      }
+  const fetchDepartments = async () => {
+    const { data, error } = await supabase
+      .from("departments")
+      .select("id, name")
+      .order("name", { ascending: true });
 
-      setPositions(data || []);
-    };
+    if (error) {
+      console.error("Error fetching departments:", error);
+      toast.error("Gagal memuat data departemen.");
+      return;
+    }
 
-    fetchPositions();
-  }, [toast]);
+    setDepartments(data || []);
+  };
+
+  const fetchPositions = async () => {
+    const { data, error } = await supabase
+      .from("positions")
+      .select("id, name, department_id")
+      .order("name", { ascending: true });
+
+    if (error) {
+      console.error("Error fetching positions:", error);
+      toast.error("Gagal memuat data posisi.");
+      return;
+    }
+
+    setPositions(data || []);
+  };
 
   // Populate form fields if in edit mode
   useEffect(() => {
@@ -116,6 +141,7 @@ export default function AddEmployeeDialog({
       setBankName(employee.bank_name || "");
       setBankAccount(employee.bank_account || "");
       setPositionId(employee.position_id || "");
+      setDepartmentId(employee.department_id || "");
       setBpjsAccount(employee.bpjs_account || "");
       setNpwpAccount(employee.npwp_account || "");
       setIncentive(employee.incentive ?? 0);
@@ -131,6 +157,7 @@ export default function AddEmployeeDialog({
       setBankName("");
       setBankAccount("");
       setPositionId("");
+      setDepartmentId("");
       setBpjsAccount("");
       setNpwpAccount("");
       setIncentive(0);
@@ -139,36 +166,36 @@ export default function AddEmployeeDialog({
     }
   }, [isEditMode, employee]);
 
+  // Update position selection when department changes
+  useEffect(() => {
+    if (departmentId) {
+      const position = positions.find(p => p.department_id === departmentId);
+      if (position) {
+        setPositionId(position.id);
+      } else {
+        setPositionId("");
+      }
+    }
+  }, [departmentId, positions]);
+
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
       // Validate required fields
       if (!firstName.trim()) {
-        toast({
-          title: "Error",
-          description: "Nama depan harus diisi.",
-          variant: "destructive",
-        });
+        toast.error("Nama depan harus diisi.");
         setIsLoading(false);
         return;
       }
 
       if (!hireDate) {
-        toast({
-          title: "Error",
-          description: "Tanggal perekrutan harus diisi.",
-          variant: "destructive",
-        });
+        toast.error("Tanggal perekrutan harus diisi.");
         setIsLoading(false);
         return;
       }
 
-      if (basicSalary === "" || basicSalary < 0) {
-        toast({
-          title: "Error",
-          description: "Gaji pokok harus diisi dan tidak boleh negatif.",
-          variant: "destructive",
-        });
+      if (basicSalary === "" || Number(basicSalary) < 0) {
+        toast.error("Gaji pokok harus diisi dan tidak boleh negatif.");
         setIsLoading(false);
         return;
       }
@@ -185,6 +212,7 @@ export default function AddEmployeeDialog({
           bank_name: bankName.trim() || null,
           bank_account: bankAccount.trim() || null,
           position_id: positionId || null,
+          department_id: departmentId || null,
           bpjs_account: bpjsAccount.trim() || null,
           npwp_account: npwpAccount.trim() || null,
           incentive: Number(incentive) || null,
@@ -200,11 +228,7 @@ export default function AddEmployeeDialog({
 
         if (error) throw error;
 
-        toast({
-          title: "Sukses",
-          description: "Karyawan berhasil diperbarui.",
-          variant: "default",
-        });
+        toast.success("Karyawan berhasil diperbarui.");
       } else {
         // Add new employee
         const employeeData: TablesInsert<"employees"> = {
@@ -217,6 +241,7 @@ export default function AddEmployeeDialog({
           bank_name: bankName.trim() || null,
           bank_account: bankAccount.trim() || null,
           position_id: positionId || null,
+          department_id: departmentId || null,
           bpjs_account: bpjsAccount.trim() || null,
           npwp_account: npwpAccount.trim() || null,
           incentive: Number(incentive) || null,
@@ -230,11 +255,7 @@ export default function AddEmployeeDialog({
 
         if (error) throw error;
 
-        toast({
-          title: "Sukses",
-          description: "Karyawan berhasil ditambahkan.",
-          variant: "default",
-        });
+        toast.success("Karyawan berhasil ditambahkan.");
       }
 
       // Reset form and close dialog
@@ -247,6 +268,7 @@ export default function AddEmployeeDialog({
       setBankName("");
       setBankAccount("");
       setPositionId("");
+      setDepartmentId("");
       setBpjsAccount("");
       setNpwpAccount("");
       setIncentive(0);
@@ -256,15 +278,16 @@ export default function AddEmployeeDialog({
       await onSuccess();
     } catch (error: any) {
       console.error("Error handling employee:", error);
-      toast({
-        title: "Error",
-        description: `Gagal ${isEditMode ? "memperbarui" : "menambahkan"} karyawan: ${error.message}`,
-        variant: "destructive",
-      });
+      toast.error(`Gagal ${isEditMode ? "memperbarui" : "menambahkan"} karyawan: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Filter positions based on selected department
+  const filteredPositions = departmentId 
+    ? positions.filter(p => p.department_id === departmentId)
+    : positions;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -333,6 +356,36 @@ export default function AddEmployeeDialog({
             />
           </div>
           <div className="grid gap-2">
+            <Label htmlFor="department-id">Departemen</Label>
+            <Select value={departmentId} onValueChange={setDepartmentId}>
+              <SelectTrigger id="department-id">
+                <SelectValue placeholder="Pilih departemen (opsional)" />
+              </SelectTrigger>
+              <SelectContent>
+                {departments.map((dept) => (
+                  <SelectItem key={dept.id} value={dept.id}>
+                    {dept.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="position-id">Posisi</Label>
+            <Select value={positionId} onValueChange={setPositionId}>
+              <SelectTrigger id="position-id">
+                <SelectValue placeholder="Pilih posisi (opsional)" />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredPositions.map((position) => (
+                  <SelectItem key={position.id} value={position.id}>
+                    {position.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
             <Label htmlFor="bank-name">Nama Bank</Label>
             <Input
               id="bank-name"
@@ -349,21 +402,6 @@ export default function AddEmployeeDialog({
               onChange={(e) => setBankAccount(e.target.value)}
               placeholder="Masukkan nomor rekening (opsional)"
             />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="position-id">Posisi</Label>
-            <Select value={positionId} onValueChange={setPositionId}>
-              <SelectTrigger id="position-id">
-                <SelectValue placeholder="Pilih posisi (opsional)" />
-              </SelectTrigger>
-              <SelectContent>
-                {positions.map((position) => (
-                  <SelectItem key={position.id} value={position.id}>
-                    {position.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="bpjs-account">Nomor BPJS</Label>
