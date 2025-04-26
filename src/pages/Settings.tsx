@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,6 +31,81 @@ interface CalculationInput {
   taxStatus: string;
 }
 
+// Sample data to use since the real tables don't exist yet
+const sampleTaxSettings: TaxSetting[] = [
+  {
+    id: '1',
+    name: 'TK/0',
+    description: 'Tidak Kawin/0',
+    ptkp_amount: 54000000,
+    tax_rate: 5
+  },
+  {
+    id: '2',
+    name: 'K/0',
+    description: 'Kawin/0',
+    ptkp_amount: 58500000,
+    tax_rate: 5
+  },
+  {
+    id: '3',
+    name: 'K/1',
+    description: 'Kawin/1 anak',
+    ptkp_amount: 63000000,
+    tax_rate: 5
+  },
+  {
+    id: '4',
+    name: 'K/2',
+    description: 'Kawin/2 anak',
+    ptkp_amount: 67500000,
+    tax_rate: 5
+  }
+];
+
+const sampleBPJSSettings: BPJSSetting[] = [
+  {
+    id: '1',
+    name: 'BPJS Kesehatan',
+    description: 'Jaminan pemeliharaan kesehatan',
+    employee_percentage: 1,
+    company_percentage: 4,
+    type: 'kesehatan'
+  },
+  {
+    id: '2',
+    name: 'BPJS JHT',
+    description: 'Jaminan Hari Tua',
+    employee_percentage: 2,
+    company_percentage: 3.7,
+    type: 'jht'
+  },
+  {
+    id: '3',
+    name: 'BPJS JP',
+    description: 'Jaminan Pensiun',
+    employee_percentage: 1,
+    company_percentage: 2,
+    type: 'jp'
+  },
+  {
+    id: '4',
+    name: 'BPJS JKK',
+    description: 'Jaminan Kecelakaan Kerja',
+    employee_percentage: 0,
+    company_percentage: 0.24,
+    type: 'jkk'
+  },
+  {
+    id: '5',
+    name: 'BPJS JKM',
+    description: 'Jaminan Kematian',
+    employee_percentage: 0,
+    company_percentage: 0.3,
+    type: 'jkm'
+  }
+];
+
 export default function Settings() {
   const [taxSettings, setTaxSettings] = useState<TaxSetting[]>([]);
   const [bpjsSettings, setBPJSSettings] = useState<BPJSSetting[]>([]);
@@ -42,38 +116,13 @@ export default function Settings() {
   const [calcResults, setCalcResults] = useState<any>(null);
 
   useEffect(() => {
-    // Fetch tax settings
-    const fetchTaxSettings = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("tax_settings")
-          .select("*");
-
-        if (error) throw error;
-        setTaxSettings(data || []);
-      } catch (error: any) {
-        console.error("Error fetching tax settings:", error);
-        toast.error(`Failed to load tax settings: ${error.message}`);
-      }
-    };
-
-    // Fetch BPJS settings
-    const fetchBPJSSettings = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("bpjs_settings")
-          .select("*");
-
-        if (error) throw error;
-        setBPJSSettings(data || []);
-      } catch (error: any) {
-        console.error("Error fetching BPJS settings:", error);
-        toast.error(`Failed to load BPJS settings: ${error.message}`);
-      }
-    };
-
-    fetchTaxSettings();
-    fetchBPJSSettings();
+    // Use sample data since tables don't exist yet
+    setTaxSettings(sampleTaxSettings);
+    setBPJSSettings(sampleBPJSSettings);
+    
+    // Display console warning about missing tables
+    console.warn("Warning: tax_settings and bpjs_settings tables don't exist in the database. Using sample data instead.");
+    toast.warning("Menggunakan data sampel untuk pengaturan pajak dan BPJS");
   }, []);
 
   const handleCalculate = () => {

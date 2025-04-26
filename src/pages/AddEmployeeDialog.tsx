@@ -49,7 +49,6 @@ interface Employee {
 interface Position {
   id: string;
   name: string;
-  department_id: string | null;
 }
 
 interface Department {
@@ -115,18 +114,18 @@ export default function AddEmployeeDialog({
   };
 
   const fetchPositions = async () => {
-    const { data, error } = await supabase
-      .from("positions")
-      .select("id, name, department_id")
-      .order("name", { ascending: true });
-
-    if (error) {
+    try {
+      const { data, error } = await supabase
+        .from("positions")
+        .select("id, name")
+        .order("name", { ascending: true });
+  
+      if (error) throw error;
+      setPositions(data || []);
+    } catch (error: any) {
       console.error("Error fetching positions:", error);
       toast.error("Gagal memuat data posisi.");
-      return;
     }
-
-    setPositions(data || []);
   };
 
   // Populate form fields if in edit mode
@@ -165,18 +164,6 @@ export default function AddEmployeeDialog({
       setBasicSalary(0);
     }
   }, [isEditMode, employee]);
-
-  // Update position selection when department changes
-  useEffect(() => {
-    if (departmentId) {
-      const position = positions.find(p => p.department_id === departmentId);
-      if (position) {
-        setPositionId(position.id);
-      } else {
-        setPositionId("");
-      }
-    }
-  }, [departmentId, positions]);
 
   const handleSubmit = async () => {
     setIsLoading(true);
@@ -284,11 +271,6 @@ export default function AddEmployeeDialog({
     }
   };
 
-  // Filter positions based on selected department
-  const filteredPositions = departmentId 
-    ? positions.filter(p => p.department_id === departmentId)
-    : positions;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px]">
@@ -377,7 +359,7 @@ export default function AddEmployeeDialog({
                 <SelectValue placeholder="Pilih posisi (opsional)" />
               </SelectTrigger>
               <SelectContent>
-                {filteredPositions.map((position) => (
+                {positions.map((position) => (
                   <SelectItem key={position.id} value={position.id}>
                     {position.name}
                   </SelectItem>

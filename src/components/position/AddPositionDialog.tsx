@@ -71,8 +71,7 @@ export default function AddPositionDialog({
       const { error } = await supabase
         .from("positions")
         .insert({
-          name, // Use name instead of title to match the database schema
-          department_id: departmentId || null,
+          name: name.trim(), 
         });
       
       if (error) throw error;
