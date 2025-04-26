@@ -1,12 +1,14 @@
 
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { DayPicker } from "react-day-picker"; // Correct import - DayPicker not Calendar
+import { DayPicker } from "react-day-picker";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { Calendar as CalendarIcon, Plus } from "lucide-react";
+import "react-day-picker/dist/style.css";
 
 interface CalendarEvent {
   id: string;
@@ -115,17 +117,38 @@ export default function Calendar() {
       <div className="grid grid-cols-12 gap-4 lg:gap-6">
         <Card className="col-span-12 lg:col-span-8">
           <CardHeader>
-            <CardTitle>Calendar View</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarIcon className="h-5 w-5" />
+              Calendar View
+            </CardTitle>
             <CardDescription>Click on a date to see events.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex justify-center p-2 md:p-4 overflow-x-auto">
+            <div className="flex justify-center p-2 md:p-4">
               <DayPicker
                 mode="single"
                 selected={selected}
                 onSelect={setSelected}
-                className="border rounded-md pointer-events-auto"
                 locale={id}
+                className="p-4 bg-white rounded-lg shadow-sm border"
+                classNames={{
+                  months: "flex flex-col space-y-4",
+                  month: "space-y-4",
+                  caption: "flex justify-center relative items-center h-10",
+                  caption_label: "text-lg font-medium",
+                  nav: "flex items-center space-x-1",
+                  nav_button: "inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background hover:bg-accent hover:text-accent-foreground h-8 w-8 p-0",
+                  table: "w-full border-collapse space-y-1",
+                  head_row: "flex",
+                  head_cell: "rounded-md w-10 h-10 font-normal text-[0.8rem] text-muted-foreground",
+                  row: "flex w-full mt-2 gap-1",
+                  cell: "relative p-0 text-center text-sm focus-within:relative focus-within:z-20 [&:has([aria-selected])]:bg-accent/50 first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md",
+                  day: "h-10 w-10 p-0 font-normal aria-selected:opacity-100 hover:bg-accent rounded-md",
+                  day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+                  day_today: "bg-accent text-accent-foreground",
+                  day_outside: "text-muted-foreground opacity-50",
+                  day_disabled: "text-muted-foreground opacity-50",
+                }}
               />
             </div>
           </CardContent>
@@ -140,6 +163,7 @@ export default function Calendar() {
               </span>
             </CardTitle>
             <Button onClick={handleAddEvent} size="sm" className="whitespace-nowrap">
+              <Plus className="h-4 w-4 mr-2" />
               Add Event
             </Button>
           </CardHeader>

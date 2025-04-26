@@ -97,6 +97,36 @@ export default function Attendance() {
         <p className="text-muted-foreground">Track employee attendance records</p>
       </div>
 
+      {/* Summary Cards - Moved to top */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Attendance Summary</CardTitle>
+          <CardDescription>
+            Statistics for {date ? format(date, "PP", { locale: id }) : "today"}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="flex flex-col space-y-1 rounded-md border p-3 md:p-4">
+              <span className="text-muted-foreground text-xs">Present</span>
+              <span className="text-xl md:text-2xl font-bold">{presentCount}</span>
+            </div>
+            <div className="flex flex-col space-y-1 rounded-md border p-3 md:p-4">
+              <span className="text-muted-foreground text-xs">Absent</span>
+              <span className="text-xl md:text-2xl font-bold">{absentCount}</span>
+            </div>
+            <div className="flex flex-col space-y-1 rounded-md border p-3 md:p-4">
+              <span className="text-muted-foreground text-xs">Late</span>
+              <span className="text-xl md:text-2xl font-bold">{lateCount}</span>
+            </div>
+            <div className="flex flex-col space-y-1 rounded-md border p-3 md:p-4">
+              <span className="text-muted-foreground text-xs">Total</span>
+              <span className="text-xl md:text-2xl font-bold">{totalEmployees}</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-12 gap-4 lg:gap-6">
         <Card className="col-span-12 lg:col-span-8">
           <CardHeader>
