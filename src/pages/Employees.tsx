@@ -1,4 +1,3 @@
-
 /* src/pages/Employees.tsx */
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -172,7 +171,8 @@ export default function Employees() {
         </div>
       </div>
 
-      <div className="grid grid-cols-12 gap-4">
+      {/* Updated grid layout for better responsiveness */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <DepartmentCard />
         <PositionCard />
       </div>

@@ -7,6 +7,15 @@ import AddDepartmentDialog from "./AddDepartmentDialog";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+// Define the department interface to match the database schema
+interface Department {
+  id: string;
+  name: string;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export default function DepartmentCard() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   
@@ -18,7 +27,7 @@ export default function DepartmentCard() {
         .select('*')
         .order('name');
       if (error) throw error;
-      return data;
+      return data as Department[];
     }
   });
 

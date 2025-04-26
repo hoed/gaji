@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar as ReactCalendar } from "react-day-picker";
+import { DayPicker } from "react-day-picker"; // Correct import - DayPicker not Calendar
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -120,11 +120,11 @@ export default function Calendar() {
           </CardHeader>
           <CardContent>
             <div className="flex justify-center p-4">
-              <ReactCalendar
+              <DayPicker
                 mode="single"
                 selected={selected}
                 onSelect={setSelected}
-                className="border rounded-md"
+                className="border rounded-md pointer-events-auto"
                 locale={id}
               />
             </div>

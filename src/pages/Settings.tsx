@@ -1,359 +1,441 @@
 
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import React, { useState, useEffect } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+
+// Define the types for tax and BPJS settings
+interface TaxSetting {
+  id: string;
+  name: string;
+  description: string | null;
+  ptkp_amount: number;
+  tax_rate: number;
+}
+
+interface BPJSSetting {
+  id: string;
+  name: string;
+  description: string | null;
+  employee_percentage: number;
+  company_percentage: number;
+  type: string;
+}
+
+// Define the type for calculation inputs
+interface CalculationInput {
+  salary: number;
+  taxStatus: string;
+}
 
 export default function Settings() {
-  const [taxSettings, setTaxSettings] = useState<any[]>([]);
-  const [bpjsSettings, setBpjsSettings] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Tax calculation
-  const [taxInput, setTaxInput] = useState({
-    grossIncome: 0,
-    taxStatus: 'TK/0'
-  });
-  const [taxResult, setTaxResult] = useState<number | null>(null);
-
-  // BPJS calculation
-  const [bpjsInput, setBpjsInput] = useState({
+  const [taxSettings, setTaxSettings] = useState<TaxSetting[]>([]);
+  const [bpjsSettings, setBPJSSettings] = useState<BPJSSetting[]>([]);
+  const [calcInput, setCalcInput] = useState<CalculationInput>({
     salary: 0,
+    taxStatus: "TK/0",
   });
-  const [bpjsResult, setBpjsResult] = useState<{
-    kesehatan: { employee: number, company: number },
-    jht: { employee: number, company: number },
-    jkk: number,
-    jkm: number,
-    jp: { employee: number, company: number }
-  } | null>(null);
+  const [calcResults, setCalcResults] = useState<any>(null);
 
   useEffect(() => {
-    fetchSettings();
+    // Fetch tax settings
+    const fetchTaxSettings = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("tax_settings")
+          .select("*");
+
+        if (error) throw error;
+        setTaxSettings(data || []);
+      } catch (error: any) {
+        console.error("Error fetching tax settings:", error);
+        toast.error(`Failed to load tax settings: ${error.message}`);
+      }
+    };
+
+    // Fetch BPJS settings
+    const fetchBPJSSettings = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("bpjs_settings")
+          .select("*");
+
+        if (error) throw error;
+        setBPJSSettings(data || []);
+      } catch (error: any) {
+        console.error("Error fetching BPJS settings:", error);
+        toast.error(`Failed to load BPJS settings: ${error.message}`);
+      }
+    };
+
+    fetchTaxSettings();
+    fetchBPJSSettings();
   }, []);
 
-  const fetchSettings = async () => {
-    setIsLoading(true);
+  const handleCalculate = () => {
     try {
-      // Fetch tax settings
-      const { data: taxData, error: taxError } = await supabase
-        .from('tax_settings')
-        .select('*')
-        .order('ptkp_amount', { ascending: true });
-
-      if (taxError) throw taxError;
-      setTaxSettings(taxData || []);
-
-      // Fetch BPJS settings
-      const { data: bpjsData, error: bpjsError } = await supabase
-        .from('bpjs_settings')
-        .select('*')
-        .order('name');
-
-      if (bpjsError) throw bpjsError;
-      setBpjsSettings(bpjsData || []);
-
-    } catch (error: any) {
-      toast.error(`Failed to load settings: ${error.message}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const calculateTax = () => {
-    try {
-      const { grossIncome, taxStatus } = taxInput;
-      
-      if (grossIncome <= 0) {
-        toast.error("Gross income must be greater than 0");
-        return;
-      }
-
       // Find the selected tax status
-      const selectedTaxStatus = taxSettings.find(tax => tax.name === taxStatus);
+      const selectedTaxSetting = taxSettings.find(tax => tax.name === calcInput.taxStatus);
+      if (!selectedTaxSetting) throw new Error("Tax status not found");
       
-      if (!selectedTaxStatus) {
-        toast.error("Tax status not found");
-        return;
-      }
-
-      // Calculate annual gross income
-      const annualGross = grossIncome * 12;
-      
-      // Calculate taxable income (annual gross - PTKP)
-      let taxableIncome = annualGross - selectedTaxStatus.ptkp_amount;
-      taxableIncome = taxableIncome > 0 ? taxableIncome : 0;
-      
-      // Calculate tax (simplified example)
-      const taxAmount = taxableIncome * (selectedTaxStatus.tax_rate / 100);
-      
-      // Calculate monthly tax
-      const monthlyTax = taxAmount / 12;
-      
-      setTaxResult(monthlyTax);
-    } catch (error: any) {
-      toast.error(`Error calculating tax: ${error.message}`);
-    }
-  };
-
-  const calculateBPJS = () => {
-    try {
-      const { salary } = bpjsInput;
-      
-      if (salary <= 0) {
-        toast.error("Salary must be greater than 0");
-        return;
-      }
-
       // Find BPJS settings by type
-      const kesehatanSettings = bpjsSettings.find(s => s.type === 'kesehatan') || { employee_percentage: 1, company_percentage: 4 };
-      const jhtSettings = bpjsSettings.find(s => s.type === 'jht') || { employee_percentage: 2, company_percentage: 3.7 };
-      const jkkSettings = bpjsSettings.find(s => s.type === 'jkk') || { company_percentage: 0.24 };
-      const jkmSettings = bpjsSettings.find(s => s.type === 'jkm') || { company_percentage: 0.3 };
-      const jpSettings = bpjsSettings.find(s => s.type === 'jp') || { employee_percentage: 1, company_percentage: 2 };
-
-      const result = {
-        kesehatan: {
-          employee: salary * (kesehatanSettings.employee_percentage / 100),
-          company: salary * (kesehatanSettings.company_percentage / 100)
-        },
-        jht: {
-          employee: salary * (jhtSettings.employee_percentage / 100),
-          company: salary * (jhtSettings.company_percentage / 100)
-        },
-        jkk: salary * (jkkSettings.company_percentage / 100),
-        jkm: salary * (jkmSettings.company_percentage / 100),
-        jp: {
-          employee: salary * (jpSettings.employee_percentage / 100),
-          company: salary * (jpSettings.company_percentage / 100)
-        }
-      };
-
-      setBpjsResult(result);
+      const bpjsKes = bpjsSettings.find(bpjs => bpjs.type === "kesehatan");
+      const bpjsJHT = bpjsSettings.find(bpjs => bpjs.type === "jht");
+      const bpjsJP = bpjsSettings.find(bpjs => bpjs.type === "jp");
+      const bpjsJKK = bpjsSettings.find(bpjs => bpjs.type === "jkk");
+      const bpjsJKM = bpjsSettings.find(bpjs => bpjs.type === "jkm");
+      
+      // Calculate BPJS Kesehatan
+      const bpjsKesEmployee = calcInput.salary * (bpjsKes?.employee_percentage || 0) / 100;
+      const bpjsKesCompany = calcInput.salary * (bpjsKes?.company_percentage || 0) / 100;
+      
+      // Calculate BPJS Ketenagakerjaan
+      const bpjsJHTEmployee = calcInput.salary * (bpjsJHT?.employee_percentage || 0) / 100;
+      const bpjsJHTCompany = calcInput.salary * (bpjsJHT?.company_percentage || 0) / 100;
+      const bpjsJPEmployee = calcInput.salary * (bpjsJP?.employee_percentage || 0) / 100;
+      const bpjsJPCompany = calcInput.salary * (bpjsJP?.company_percentage || 0) / 100;
+      const bpjsJKKCompany = calcInput.salary * (bpjsJKK?.company_percentage || 0) / 100;
+      const bpjsJKMCompany = calcInput.salary * (bpjsJKM?.company_percentage || 0) / 100;
+      
+      // Calculate total deductions
+      const totalBPJSEmployeeContributions = bpjsKesEmployee + bpjsJHTEmployee + bpjsJPEmployee;
+      const totalBPJSCompanyContributions = bpjsKesCompany + bpjsJHTCompany + bpjsJPCompany + bpjsJKKCompany + bpjsJKMCompany;
+      
+      // Calculate taxable income and tax
+      const yearlyIncome = calcInput.salary * 12;
+      const PKP = Math.max(0, yearlyIncome - selectedTaxSetting.ptkp_amount);
+      const tax = PKP * (selectedTaxSetting.tax_rate / 100);
+      const monthlyTax = tax / 12;
+      
+      // Calculate net salary
+      const netSalary = calcInput.salary - totalBPJSEmployeeContributions - monthlyTax;
+      
+      setCalcResults({
+        bpjsKesEmployee,
+        bpjsKesCompany,
+        bpjsJHTEmployee,
+        bpjsJHTCompany,
+        bpjsJPEmployee,
+        bpjsJPCompany,
+        bpjsJKKCompany,
+        bpjsJKMCompany,
+        totalBPJSEmployeeContributions,
+        totalBPJSCompanyContributions,
+        yearlySalary: yearlyIncome,
+        taxablePKP: PKP,
+        yearlyTax: tax,
+        monthlyTax,
+        netSalary
+      });
+      
+      toast.success("Perhitungan berhasil!");
+      
     } catch (error: any) {
-      toast.error(`Error calculating BPJS: ${error.message}`);
+      console.error("Calculation error:", error);
+      toast.error(`Gagal melakukan perhitungan: ${error.message}`);
     }
   };
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Settings</h1>
-        <p className="text-muted-foreground">Manage your app settings</p>
+        <h1 className="text-3xl font-bold">Pengaturan</h1>
+        <p className="text-muted-foreground">Kelola pengaturan aplikasi</p>
       </div>
-      
-      <Tabs defaultValue="taxbpjs" className="space-y-4">
+
+      <Tabs defaultValue="account" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="taxbpjs">Tax & BPJS</TabsTrigger>
-          <TabsTrigger value="api">API & Integration</TabsTrigger>
+          <TabsTrigger value="account">Akun</TabsTrigger>
+          <TabsTrigger value="company">Perusahaan</TabsTrigger>
+          <TabsTrigger value="tax">Pajak & BPJS</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="general">
+        <TabsContent value="account" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>General Settings</CardTitle>
-              <CardDescription>Manage your general application settings.</CardDescription>
+              <CardTitle>Profil Pengguna</CardTitle>
+              <CardDescription>
+                Lihat dan perbarui informasi profil pengguna Anda
+              </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="companyName">Company Name</Label>
-                  <Input id="companyName" placeholder="Your Company Name" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="emailAddress">Email Address</Label>
-                  <Input id="emailAddress" type="email" placeholder="admin@yourcompany.com" />
-                </div>
-                <Button className="mt-4">Save Changes</Button>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Nama</Label>
+                <Input id="name" placeholder="Nama Lengkap" />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" placeholder="email@example.com" type="email" />
+              </div>
+              <Button>Simpan Perubahan</Button>
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="taxbpjs" className="space-y-4">
-          {/* Tax Calculator Card */}
+        <TabsContent value="company" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Tax Calculator</CardTitle>
-              <CardDescription>Calculate employee tax based on income and status</CardDescription>
+              <CardTitle>Informasi Perusahaan</CardTitle>
+              <CardDescription>
+                Kelola informasi dan pengaturan perusahaan
+              </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="grid gap-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="grossIncome">Monthly Gross Income (Rp)</Label>
-                    <Input 
-                      id="grossIncome" 
-                      type="number" 
-                      min={0} 
-                      value={taxInput.grossIncome} 
-                      onChange={(e) => setTaxInput({...taxInput, grossIncome: Number(e.target.value)})} 
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="taxStatus">Tax Status</Label>
-                    <select
-                      id="taxStatus"
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      value={taxInput.taxStatus}
-                      onChange={(e) => setTaxInput({...taxInput, taxStatus: e.target.value})}
-                    >
-                      {taxSettings.map(status => (
-                        <option key={status.id} value={status.name}>
-                          {status.name} - {status.description}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                
-                <Button onClick={calculateTax}>Calculate Tax</Button>
-
-                {taxResult !== null && (
-                  <div className="p-4 border rounded-md bg-muted">
-                    <h3 className="font-medium">Tax Calculation Result</h3>
-                    <p className="mt-2">Estimated monthly PPh 21: <span className="font-bold">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(taxResult)}</span></p>
-                    <p className="text-sm text-muted-foreground">Based on the selected tax status and provided income.</p>
-                  </div>
-                )}
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="companyName">Nama Perusahaan</Label>
+                <Input id="companyName" placeholder="PT Example Indonesia" />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="companyAddress">Alamat</Label>
+                <Input id="companyAddress" placeholder="Jl. Example No. 123" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="companyNPWP">NPWP Perusahaan</Label>
+                <Input id="companyNPWP" placeholder="00.000.000.0-000.000" />
+              </div>
+              <Button>Simpan Perubahan</Button>
             </CardContent>
           </Card>
+        </TabsContent>
 
-          {/* BPJS Calculator Card */}
+        <TabsContent value="tax" className="space-y-4">
+          {/* Tax calculation card */}
           <Card>
             <CardHeader>
-              <CardTitle>BPJS Calculator</CardTitle>
-              <CardDescription>Calculate BPJS contributions for healthcare and employment</CardDescription>
+              <CardTitle>Kalkulator Pajak & BPJS</CardTitle>
+              <CardDescription>
+                Hitung estimasi pajak dan iuran BPJS
+              </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="grid gap-4">
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="bpjsSalary">Monthly Salary (Rp)</Label>
-                  <Input 
-                    id="bpjsSalary" 
-                    type="number" 
-                    min={0} 
-                    value={bpjsInput.salary} 
-                    onChange={(e) => setBpjsInput({...bpjsInput, salary: Number(e.target.value)})} 
+                  <Label htmlFor="salary">Gaji Bruto</Label>
+                  <Input
+                    id="salary"
+                    type="number"
+                    placeholder="0"
+                    value={calcInput.salary || ''}
+                    onChange={(e) => setCalcInput({...calcInput, salary: Number(e.target.value)})}
                   />
                 </div>
-                
-                <Button onClick={calculateBPJS}>Calculate BPJS</Button>
+                <div className="space-y-2">
+                  <Label htmlFor="taxStatus">Status Pajak</Label>
+                  <select
+                    id="taxStatus"
+                    className="w-full p-2 border rounded"
+                    value={calcInput.taxStatus}
+                    onChange={(e) => setCalcInput({...calcInput, taxStatus: e.target.value})}
+                  >
+                    {taxSettings.map(tax => (
+                      <option key={tax.id} value={tax.name}>
+                        {tax.name} - {tax.description}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
 
-                {bpjsResult && (
-                  <div className="p-4 border rounded-md bg-muted">
-                    <h3 className="font-medium">BPJS Calculation Result</h3>
-                    
-                    <div className="mt-4 space-y-2">
-                      <h4 className="font-medium">BPJS Kesehatan</h4>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Employee Contribution:</p>
-                          <p className="font-medium">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(bpjsResult.kesehatan.employee)}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Company Contribution:</p>
-                          <p className="font-medium">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(bpjsResult.kesehatan.company)}</p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-4 space-y-2">
-                      <h4 className="font-medium">BPJS Ketenagakerjaan</h4>
-                      
-                      <div className="space-y-2">
-                        <h5 className="text-sm font-medium">JHT (Jaminan Hari Tua)</h5>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <p className="text-sm text-muted-foreground">Employee:</p>
-                            <p className="font-medium">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(bpjsResult.jht.employee)}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">Company:</p>
-                            <p className="font-medium">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(bpjsResult.jht.company)}</p>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-1">
-                        <h5 className="text-sm font-medium">JKK (Jaminan Kecelakaan Kerja)</h5>
-                        <p className="text-sm text-muted-foreground">Company:</p>
-                        <p className="font-medium">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(bpjsResult.jkk)}</p>
-                      </div>
-                      
-                      <div className="space-y-1">
-                        <h5 className="text-sm font-medium">JKM (Jaminan Kematian)</h5>
-                        <p className="text-sm text-muted-foreground">Company:</p>
-                        <p className="font-medium">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(bpjsResult.jkm)}</p>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <h5 className="text-sm font-medium">JP (Jaminan Pensiun)</h5>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <p className="text-sm text-muted-foreground">Employee:</p>
-                            <p className="font-medium">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(bpjsResult.jp.employee)}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">Company:</p>
-                            <p className="font-medium">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(bpjsResult.jp.company)}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-4 pt-4 border-t">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <p className="text-sm font-medium">Total Employee Contribution:</p>
-                          <p className="font-bold">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(
-                            bpjsResult.kesehatan.employee + bpjsResult.jht.employee + bpjsResult.jp.employee
-                          )}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">Total Company Contribution:</p>
-                          <p className="font-bold">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(
-                            bpjsResult.kesehatan.company + bpjsResult.jht.company + bpjsResult.jkk + bpjsResult.jkm + bpjsResult.jp.company
-                          )}</p>
-                        </div>
-                      </div>
+              <Button onClick={handleCalculate} className="w-full">Hitung</Button>
+
+              {calcResults && (
+                <div className="border rounded-lg p-4 mt-4 space-y-4">
+                  <h3 className="font-semibold text-lg">Hasil Perhitungan</h3>
+                  
+                  <div className="space-y-2">
+                    <h4 className="font-medium">BPJS Kesehatan</h4>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <p>Kontribusi Karyawan (1%):</p>
+                      <p className="text-right">
+                        {calcResults.bpjsKesEmployee.toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
+                      <p>Kontribusi Perusahaan (4%):</p>
+                      <p className="text-right">
+                        {calcResults.bpjsKesCompany.toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
                     </div>
                   </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
-        <TabsContent value="api">
-          <Card>
-            <CardHeader>
-              <CardTitle>API & Integration Settings</CardTitle>
-              <CardDescription>Manage your API keys and integrations.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="apiKey">API Key</Label>
-                  <div className="flex space-x-2">
-                    <Input id="apiKey" type="password" value="************************" readOnly />
-                    <Button variant="outline">Regenerate</Button>
+                  <div className="space-y-2">
+                    <h4 className="font-medium">BPJS Ketenagakerjaan</h4>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <p>JHT Karyawan:</p>
+                      <p className="text-right">
+                        {calcResults.bpjsJHTEmployee.toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
+                      <p>JHT Perusahaan:</p>
+                      <p className="text-right">
+                        {calcResults.bpjsJHTCompany.toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
+                      <p>JP Karyawan:</p>
+                      <p className="text-right">
+                        {calcResults.bpjsJPEmployee.toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
+                      <p>JP Perusahaan:</p>
+                      <p className="text-right">
+                        {calcResults.bpjsJPCompany.toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
+                      <p>JKK Perusahaan:</p>
+                      <p className="text-right">
+                        {calcResults.bpjsJKKCompany.toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
+                      <p>JKM Perusahaan:</p>
+                      <p className="text-right">
+                        {calcResults.bpjsJKMCompany.toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-medium">Pajak Penghasilan (PPh21)</h4>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <p>Penghasilan Tahunan:</p>
+                      <p className="text-right">
+                        {calcResults.yearlySalary.toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
+                      <p>PTKP:</p>
+                      <p className="text-right">
+                        {(taxSettings.find(t => t.name === calcInput.taxStatus)?.ptkp_amount || 0).toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
+                      <p>PKP (Tahunan):</p>
+                      <p className="text-right">
+                        {calcResults.taxablePKP.toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
+                      <p>Pajak Tahunan:</p>
+                      <p className="text-right">
+                        {calcResults.yearlyTax.toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
+                      <p>Pajak Bulanan:</p>
+                      <p className="text-right">
+                        {calcResults.monthlyTax.toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t">
+                    <div className="grid grid-cols-2 gap-2 text-base font-semibold">
+                      <p>Total Potongan:</p>
+                      <p className="text-right">
+                        {(calcResults.totalBPJSEmployeeContributions + calcResults.monthlyTax).toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
+                      <p>Gaji Bersih:</p>
+                      <p className="text-right">
+                        {calcResults.netSalary.toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
+                    </div>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="webhookUrl">Webhook URL</Label>
-                  <Input id="webhookUrl" placeholder="https://yourservice.com/webhook" />
-                </div>
-                <Button className="mt-4">Save Changes</Button>
-              </div>
+              )}
             </CardContent>
           </Card>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Tax Settings Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Pengaturan Pajak</CardTitle>
+                <CardDescription>Status PTKP dan Tarif Pajak</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {taxSettings.map((tax) => (
+                    <div key={tax.id} className="border-b pb-2">
+                      <p className="font-medium">{tax.name}</p>
+                      <p className="text-sm text-muted-foreground">{tax.description}</p>
+                      <div className="flex justify-between mt-1 text-sm">
+                        <span>PTKP:</span>
+                        <span>
+                          {tax.ptkp_amount.toLocaleString('id-ID', {
+                            style: 'currency',
+                            currency: 'IDR'
+                          })}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Tarif:</span>
+                        <span>{tax.tax_rate}%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* BPJS Settings Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Pengaturan BPJS</CardTitle>
+                <CardDescription>Tarif Kontribusi BPJS</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {bpjsSettings.map((bpjs) => (
+                    <div key={bpjs.id} className="border-b pb-2">
+                      <p className="font-medium">{bpjs.name}</p>
+                      <p className="text-sm text-muted-foreground">{bpjs.description}</p>
+                      <div className="flex justify-between mt-1 text-sm">
+                        <span>Karyawan:</span>
+                        <span>{bpjs.employee_percentage}%</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Perusahaan:</span>
+                        <span>{bpjs.company_percentage}%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

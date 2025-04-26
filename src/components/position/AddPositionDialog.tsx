@@ -1,19 +1,12 @@
 
-import { useState, useEffect } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import React, { useState, useEffect } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Department {
   id: string;
@@ -23,68 +16,76 @@ interface Department {
 interface AddPositionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess: () => void;
+  onSuccess?: () => void;
 }
 
-export default function AddPositionDialog({ open, onOpenChange, onSuccess }: AddPositionDialogProps) {
+export default function AddPositionDialog({
+  open,
+  onOpenChange,
+  onSuccess,
+}: AddPositionDialogProps) {
   const [name, setName] = useState("");
   const [departmentId, setDepartmentId] = useState("");
-  const [salaryBase, setSalaryBase] = useState<number>(0);
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    // Reset form when dialog opens
+    if (open) {
+      setName("");
+      setDepartmentId("");
+    }
+    
+    // Fetch departments
     const fetchDepartments = async () => {
-      const { data, error } = await supabase
-        .from("departments")
-        .select("id, name")
-        .order("name");
-
-      if (error) {
-        toast.error("Error fetching departments");
-        console.error(error);
-        return;
+      try {
+        const { data, error } = await supabase
+          .from("departments")
+          .select("id, name")
+          .order("name");
+        
+        if (error) throw error;
+        setDepartments(data || []);
+        
+      } catch (error: any) {
+        console.error("Error fetching departments:", error);
+        toast.error(`Failed to load departments: ${error.message}`);
       }
-
-      setDepartments(data || []);
     };
-
+    
     if (open) {
       fetchDepartments();
     }
   }, [open]);
 
-  const handleSubmit = async () => {
-    if (!name.trim()) {
-      toast.error("Position name is required");
-      return;
-    }
-    
-    setIsSubmitting(true);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
     
     try {
-      // Use name instead of title to match database schema
+      if (!name.trim()) {
+        throw new Error("Nama jabatan tidak boleh kosong");
+      }
+      
+      // Insert new position
       const { error } = await supabase
         .from("positions")
-        .insert({ 
-          name: name.trim(), 
+        .insert({
+          name, // Use name instead of title to match the database schema
           department_id: departmentId || null,
-          salary_base: salaryBase || 0
         });
-
+      
       if (error) throw error;
       
-      toast.success("Position added successfully");
-      onSuccess();
+      toast.success("Jabatan berhasil ditambahkan");
       onOpenChange(false);
-      setName("");
-      setDepartmentId("");
-      setSalaryBase(0);
+      onSuccess?.();
+      
     } catch (error: any) {
-      toast.error(`Error adding position: ${error.message}`);
-      console.error(error);
+      console.error("Error adding position:", error);
+      toast.error(`Failed to add position: ${error.message}`);
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
     }
   };
 
@@ -92,28 +93,31 @@ export default function AddPositionDialog({ open, onOpenChange, onSuccess }: Add
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add Position</DialogTitle>
-          <DialogDescription>
-            Add a new position to the system.
-          </DialogDescription>
+          <DialogTitle>Tambah Jabatan Baru</DialogTitle>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid gap-2">
-            <Label htmlFor="name">Position Name</Label>
+        <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">Nama Jabatan</Label>
             <Input
               id="name"
+              placeholder="Masukkan nama jabatan"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Enter position name"
+              disabled={isLoading}
             />
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="department">Department</Label>
-            <Select value={departmentId} onValueChange={setDepartmentId}>
+          <div className="space-y-2">
+            <Label htmlFor="department">Departemen</Label>
+            <Select 
+              value={departmentId} 
+              onValueChange={setDepartmentId}
+              disabled={isLoading}
+            >
               <SelectTrigger id="department">
-                <SelectValue placeholder="Select a department" />
+                <SelectValue placeholder="Pilih departemen" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="">-- Tidak ada departemen --</SelectItem>
                 {departments.map((dept) => (
                   <SelectItem key={dept.id} value={dept.id}>
                     {dept.name}
@@ -122,25 +126,20 @@ export default function AddPositionDialog({ open, onOpenChange, onSuccess }: Add
               </SelectContent>
             </Select>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="salaryBase">Base Salary</Label>
-            <Input
-              id="salaryBase"
-              type="number"
-              value={salaryBase}
-              onChange={(e) => setSalaryBase(Number(e.target.value))}
-              placeholder="Enter base salary"
-            />
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={isLoading}
+            >
+              Batal
+            </Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? "Menyimpan..." : "Simpan"}
+            </Button>
           </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? "Adding..." : "Add Position"}
-          </Button>
-        </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

@@ -7,6 +7,17 @@ import AddPositionDialog from "./AddPositionDialog";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+// Define the position interface to match the database schema
+interface Position {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  departments?: {
+    name: string;
+  };
+}
+
 export default function PositionCard() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   
@@ -18,7 +29,7 @@ export default function PositionCard() {
         .select('*, departments(name)')
         .order('name');
       if (error) throw error;
-      return data;
+      return data as Position[];
     }
   });
 
