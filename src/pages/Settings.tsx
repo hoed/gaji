@@ -20,6 +20,14 @@ import {
 } from "@/components/ui/form";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function Settings() {
   const { toast } = useToast();
@@ -58,6 +66,48 @@ export default function Settings() {
       title: "API Key dibuat",
       description: "API Key baru telah dibuat untuk integrasi mesin absensi",
     });
+  };
+
+  const [taxSalary, setTaxSalary] = useState("");
+  const [taxStatus, setTaxStatus] = useState("TK/0");
+  const [calculatedPph21, setCalculatedPph21] = useState<number | null>(null);
+
+  const handleCalculatePph21 = async () => {
+    try {
+      const { data, error } = await supabase
+        .rpc('calculate_pph21', { 
+          gross_salary: parseFloat(taxSalary), 
+          tax_status: taxStatus 
+        });
+
+      if (error) throw error;
+      setCalculatedPph21(data);
+    } catch (error: any) {
+      toast.error(`Gagal menghitung PPh 21: ${error.message}`);
+    }
+  };
+
+  const [bpjsSalary, setBpjsSalary] = useState("");
+  const [bpjsResults, setBpjsResults] = useState<any>(null);
+
+  const handleCalculateBPJS = async () => {
+    try {
+      const salary = parseFloat(bpjsSalary);
+      const [kesehatan, ketenagakerjaan] = await Promise.all([
+        supabase.rpc('calculate_bpjs_kesehatan', { salary }),
+        supabase.rpc('calculate_bpjs_ketenagakerjaan', { salary })
+      ]);
+
+      if (kesehatan.error) throw kesehatan.error;
+      if (ketenagakerjaan.error) throw ketenagakerjaan.error;
+
+      setBpjsResults({
+        kesehatan: kesehatan.data,
+        ketenagakerjaan: ketenagakerjaan.data
+      });
+    } catch (error: any) {
+      toast.error(`Gagal menghitung BPJS: ${error.message}`);
+    }
   };
 
   return (
@@ -127,72 +177,103 @@ export default function Settings() {
         </TabsContent>
         
         <TabsContent value="tax">
-          <Card>
-            <CardHeader>
-              <CardTitle>Pengaturan Pajak (PPh 21)</CardTitle>
-              <CardDescription>
-                Konfigurasi perhitungan pajak penghasilan
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid gap-4">
-                <div className="flex items-center justify-between">
+          <div className="grid gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Kalkulator PPh 21</CardTitle>
+                <CardDescription>
+                  Hitung PPh 21 berdasarkan gaji dan status
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium">Gaji Kotor</label>
+                      <Input
+                        type="number"
+                        value={taxSalary}
+                        onChange={(e) => setTaxSalary(e.target.value)}
+                        placeholder="Masukkan gaji kotor"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Status Pajak</label>
+                      <Select value={taxStatus} onValueChange={setTaxStatus}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="TK/0">TK/0</SelectItem>
+                          <SelectItem value="K/0">K/0</SelectItem>
+                          <SelectItem value="K/1">K/1</SelectItem>
+                          <SelectItem value="K/2">K/2</SelectItem>
+                          <SelectItem value="K/3">K/3</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <Button onClick={handleCalculatePph21}>Hitung PPh 21</Button>
+                  {calculatedPph21 !== null && (
+                    <div className="mt-4 p-4 bg-muted rounded-md">
+                      <h4 className="font-medium">Hasil Perhitungan PPh 21:</h4>
+                      <p className="text-2xl font-bold mt-2">
+                        {calculatedPph21.toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Kalkulator BPJS</CardTitle>
+                <CardDescription>
+                  Hitung iuran BPJS berdasarkan gaji
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4">
                   <div>
-                    <p className="font-medium">Gunakan PTKP Terbaru</p>
-                    <p className="text-sm text-muted-foreground">
-                      Menggunakan nilai PTKP (Penghasilan Tidak Kena Pajak) terbaru
-                    </p>
+                    <label className="text-sm font-medium">Gaji Pokok</label>
+                    <Input
+                      type="number"
+                      value={bpjsSalary}
+                      onChange={(e) => setBpjsSalary(e.target.value)}
+                      placeholder="Masukkan gaji pokok"
+                    />
                   </div>
-                  <Switch defaultChecked />
+                  <Button onClick={handleCalculateBPJS}>Hitung BPJS</Button>
+                  {bpjsResults && (
+                    <div className="mt-4 space-y-4">
+                      <div className="p-4 bg-muted rounded-md">
+                        <h4 className="font-medium">BPJS Kesehatan:</h4>
+                        <div className="mt-2 space-y-1">
+                          <p>Iuran Karyawan: {bpjsResults.kesehatan.employee.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p>
+                          <p>Iuran Perusahaan: {bpjsResults.kesehatan.company.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p>
+                        </div>
+                      </div>
+                      <div className="p-4 bg-muted rounded-md">
+                        <h4 className="font-medium">BPJS Ketenagakerjaan:</h4>
+                        <div className="mt-2 space-y-1">
+                          <p>JHT Karyawan: {bpjsResults.ketenagakerjaan.jht_employee.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p>
+                          <p>JHT Perusahaan: {bpjsResults.ketenagakerjaan.jht_company.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p>
+                          <p>JKK: {bpjsResults.ketenagakerjaan.jkk.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p>
+                          <p>JKM: {bpjsResults.ketenagakerjaan.jkm.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p>
+                          <p>JP Karyawan: {bpjsResults.ketenagakerjaan.jp_employee.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p>
+                          <p>JP Perusahaan: {bpjsResults.ketenagakerjaan.jp_company.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Hitung PPh 21 Otomatis</p>
-                    <p className="text-sm text-muted-foreground">
-                      Menghitung PPh 21 secara otomatis berdasarkan gaji
-                    </p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Metode Gross</p>
-                    <p className="text-sm text-muted-foreground">
-                      Pajak ditanggung oleh karyawan (gross method)
-                    </p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-              </div>
-              
-              <div className="space-y-4 pt-4 border-t">
-                <h3 className="font-medium">Pengaturan BPJS</h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Nomor BPJS Kesehatan Perusahaan</label>
-                    <Input defaultValue="1234567890" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Nomor BPJS Ketenagakerjaan</label>
-                    <Input defaultValue="0987654321" />
-                  </div>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Hitung BPJS Otomatis</p>
-                    <p className="text-sm text-muted-foreground">
-                      Menghitung kontribusi BPJS secara otomatis
-                    </p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-              </div>
-              
-              <Button onClick={handleSaveTaxSettings}>Simpan Pengaturan</Button>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
         
         <TabsContent value="integration">
