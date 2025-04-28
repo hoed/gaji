@@ -47,7 +47,7 @@ export default function Login() {
         </div>
         <form className="space-y-4" onSubmit={handleLogin}>
           <div className="space-y-2">
-            <Label htmlFor="email" className="text-foreground">
+            <Label htmlFor="email" className="text-white">
               Email
             </Label>
             <div className="relative">
@@ -65,7 +65,7 @@ export default function Login() {
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password" className="text-foreground">
+            <Label htmlFor="password" className="text-white">
               Password
             </Label>
             <div className="relative">
