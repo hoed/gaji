@@ -36,7 +36,7 @@ export default function Login() {
   return (
     <div
       className="min-h-screen flex items-center justify-center bg-cover bg-center bg-no-repeat"
-      style={{ backgroundImage: "url('/background.webp')" }}
+      style={{ backgroundImage: "url('/lg.jpg')" }}
     >
       <div className="w-full max-w-md bg-background/10 backdrop-blur-md border border-sidebar-border/20 rounded-lg shadow-lg p-6 sm:p-8">
         <div className="text-center mb-6">
