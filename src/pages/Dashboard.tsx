@@ -229,8 +229,8 @@ export default function Dashboard() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Kehabisan BPJS</CardTitle>
-            <CardDescription>0% Terkehabisan</CardDescription>
+            <CardTitle className="text-lg">Iuran BPJS</CardTitle>
+            <CardDescription>0% Iuran</CardDescription>
           </CardHeader>
         </Card>
         <Card>
