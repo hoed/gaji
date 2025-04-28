@@ -223,7 +223,7 @@ export default function Dashboard() {
           <CardHeader>
             <CardTitle className="text-lg">Total Penggajian</CardTitle>
             <CardDescription>
-              Rp {(totalPayroll / 1_000_000).toFixed(1)} Jt Bulan April 2025
+              Rp {(totalPayroll / 1_000_000).toFixed(1)} Jt bulan terakhir
             </CardDescription>
           </CardHeader>
         </Card>
