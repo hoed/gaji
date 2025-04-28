@@ -10,6 +10,8 @@ import { FileText, Pencil, Trash2, FileSpreadsheet } from "lucide-react";
 import AddEmployeeDialog from "./AddEmployeeDialog";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import DepartmentCard from "@/components/department/DepartmentCard";
+import PositionCard from "@/components/position/PositionCard";
 
 // Define interface for joined employee data
 interface EmployeeWithRelations extends Tables<"employees"> {
@@ -167,6 +169,12 @@ export default function Employees() {
             <span>Tambah Karyawan</span>
           </Button>
         </div>
+      </div>
+
+      {/* Updated grid layout for better responsiveness */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <DepartmentCard />
+        <PositionCard />
       </div>
 
       <Card>
