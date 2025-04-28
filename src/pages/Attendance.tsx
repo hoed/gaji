@@ -34,7 +34,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, Upload, Download, MoreVertical, AlertCircle } from "lucide-react";
+import { Calendar, Upload, Download, MoreVertical, AlertCircle, Key } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Tables, TablesInsert } from "@/integrations/supabase/types";
@@ -120,8 +120,9 @@ const isAttendanceMachineRecord = (row: unknown): row is AttendanceMachineRecord
 };
 
 export default function Attendance() {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [isApiKeyDialogOpen, setIsApiKeyDialogOpen] = useState(false);
+  const [apiKey, setApiKey] = useState("");
   const [attendanceData, setAttendanceData] = useState<Tables<"attendance">[]>([]);
   const [absencesData, setAbsencesData] = useState<Tables<"absences">[]>([]);
   const [dailySummaries, setDailySummaries] = useState<DailySummary[]>([]);
@@ -604,15 +605,24 @@ export default function Attendance() {
     }
   };
 
-  // Handle sync with attendance machine API
-  const handleSyncWithMachine = async () => {
+  // Handle import using API key
+  const handleImportWithApiKey = async () => {
+    if (!apiKey) {
+      toast({
+        title: "Error",
+        description: "Masukkan API Key untuk melanjutkan.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSyncing(true);
     try {
-      // Replace this with your actual API endpoint and authentication
+      // Fetch data using the provided API key
       const response = await fetch("/api/attendance/sync", {
         method: "GET",
         headers: {
-          "Authorization": "Bearer YOUR_API_TOKEN",
+          "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
       });
@@ -628,7 +638,7 @@ export default function Attendance() {
       if (importStatus.successfulRecords > 0) {
         toast({
           title: "Sukses",
-          description: `Berhasil menyinkronkan ${importStatus.successfulRecords} data kehadiran dari mesin.`,
+          description: `Berhasil menyinkronkan ${importStatus.successfulRecords} data kehadiran menggunakan API Key.`,
           variant: "default",
         });
       } else {
@@ -640,13 +650,15 @@ export default function Attendance() {
       }
 
       setImportStatus(importStatus);
+      setIsApiKeyDialogOpen(false);
+      setApiKey("");
     } catch (error: any) {
-      console.error("Error syncing with attendance machine:", error);
+      console.error("Error syncing with API key:", error);
       setImportStatus({
         timestamp: new Date().toLocaleString("id-ID", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }),
         totalRecords: 0,
         successfulRecords: 0,
-        errors: [`Gagal menyinkronkan dengan mesin absensi: ${error.message}`],
+        errors: [`Gagal menyinkronkan dengan API Key: ${error.message}`],
         mismatches: [],
       });
       toast({
@@ -659,6 +671,142 @@ export default function Attendance() {
     }
   };
 
+  // Handle sync with Google Calendar
+  const handleSyncWithGoogleCalendar = async () => {
+    setIsSyncing(true);
+    try {
+      // Fetch calendar events that are not yet synced
+      const startDate = "2025-04-01";
+      const endDate = "2025-04-30";
+      const { data: calendarEvents, error: fetchError } = await supabase
+        .from("calendar_events")
+        .select("*")
+        .gte("start_time", startDate)
+        .lte("end_time", endDate)
+        .eq("is_synced", false);
+
+      if (fetchError) throw fetchError;
+
+      if (!calendarEvents || calendarEvents.length === 0) {
+        toast({
+          title: "Info",
+          description: "Tidak ada event baru untuk disinkronkan dengan Google Calendar.",
+          variant: "default",
+        });
+        setIsSyncing(false);
+        return;
+      }
+
+      // Prepare events for Google Calendar
+      const eventsToSync = calendarEvents.map(event => ({
+        summary: event.title,
+        description: event.description,
+        start: {
+          dateTime: event.start_time,
+          timeZone: "Asia/Jakarta", // Adjust based on your timezone
+        },
+        end: {
+          dateTime: event.end_time,
+          timeZone: "Asia/Jakarta",
+        },
+        extendedProperties: {
+          private: {
+            earliest_check_in_attendance_id: event.earliest_check_in_attendance_id || "",
+            latest_check_out_attendance_id: event.latest_check_out_attendance_id || "",
+          },
+        },
+      }));
+
+      // Send events to Google Calendar (mock API call - replace with actual Google Calendar API integration)
+      const response = await fetch("/api/google-calendar/sync", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          // Add Google OAuth token or other authentication as needed
+        },
+        body: JSON.stringify({ events: eventsToSync }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Gagal menyinkronkan dengan Google Calendar: ${response.statusText}`);
+      }
+
+      // Mark events as synced in the database
+      const eventIds = calendarEvents.map(event => event.id);
+      const { error: updateError } = await supabase
+        .from("calendar_events")
+        .update({ is_synced: true })
+        .in("id", eventIds);
+
+      if (updateError) throw updateError;
+
+      toast({
+        title: "Sukses",
+        description: `Berhasil menyinkronkan ${calendarEvents.length} event ke Google Calendar.`,
+        variant: "default",
+      });
+
+    } catch (error: any) {
+      console.error("Error syncing with Google Calendar:", error);
+      toast({
+        title: "Error",
+        description: `Gagal menyinkronkan dengan Google Calendar: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Simplify JSX to avoid deep type instantiation
+  const attendanceRateContent = (
+    <>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium">Tingkat Kehadiran</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{attendanceRate}%</div>
+        <p className="text-xs text-muted-foreground">Bulan April 2025</p>
+      </CardContent>
+    </>
+  );
+
+  const totalLateContent = (
+    <>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium">Total Keterlambatan</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{totalLate}</div>
+        <p className="text-xs text-muted-foreground">Bulan April 2025</p>
+      </CardContent>
+    </>
+  );
+
+  const totalAbsentContent = (
+    <>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium">Total Absensi</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{totalAbsent}</div>
+        <p className="text-xs text-muted-foreground">Bulan April 2025</p>
+      </CardContent>
+    </>
+  );
+
+  const totalLeaveContent = (
+    <>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium">Total Cuti</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{totalLeave}</div>
+        <p className="text-xs text-muted-foreground">Bulan April 2025</p>
+      </CardContent>
+    </>
+  );
+
   return (
     <div className="space-y-6">
       <div>
@@ -669,42 +817,10 @@ export default function Attendance() {
       </div>
       
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Tingkat Kehadiran</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{attendanceRate}%</div>
-            <p className="text-xs text-muted-foreground">Bulan April 2025</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Keterlambatan</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalLate}</div>
-            <p className="text-xs text-muted-foreground">Bulan April 2025</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Absensi</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalAbsent}</div>
-            <p className="text-xs text-muted-foreground">Bulan April 2025</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Cuti</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalLeave}</div>
-            <p className="text-xs text-muted-foreground">Bulan April 2025</p>
-          </CardContent>
-        </Card>
+        <Card>{attendanceRateContent}</Card>
+        <Card>{totalLateContent}</Card>
+        <Card>{totalAbsentContent}</Card>
+        <Card>{totalLeaveContent}</Card>
       </div>
 
       {/* Import Status Card */}
@@ -759,141 +875,147 @@ export default function Attendance() {
         </div>
         
         <div className="flex gap-2">
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          {/* Button 1: Import from File */}
+          <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
             <DialogTrigger asChild>
               <Button className="flex items-center gap-2">
                 <Upload size={16} />
-                <span>Import Kehadiran</span>
+                <span>Import from File</span>
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
-                <DialogTitle>Import Data Kehadiran</DialogTitle>
+                <DialogTitle>Import Data Kehadiran dari File</DialogTitle>
                 <DialogDescription>
-                  Unggah file CSV atau XLSX dari mesin absensi
+                  Unggah file CSV atau XLSX yang berisi data kehadiran. File harus memiliki kolom: Name, Date (YYYY-MM-DD), Status (present/absent/late/leave).
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
                   <label className="text-sm font-medium">Pilih File</label>
-                  <Input type="file" accept=".csv, .xlsx" />
-                </div>
-                <div className="grid gap-2">
-                  <label className="text-sm font-medium">Tanggal Kehadiran</label>
-                  <Input type="date" />
+                  <Input
+                    type="file"
+                    accept=".csv, .xlsx"
+                    onChange={handleImportFromFile}
+                  />
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Batal</Button>
-                <Button onClick={() => setIsDialogOpen(false)}>Import</Button>
+                <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>Batal</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
 
-          <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+          {/* Button 2: Import from API Key */}
+          <Dialog open={isApiKeyDialogOpen} onOpenChange={setIsApiKeyDialogOpen}>
             <DialogTrigger asChild>
               <Button className="flex items-center gap-2">
-              <Upload size={16} />
-              <span>Import dari Mesin/File</span>
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>Import Data Kehadiran dari Mesin/File</DialogTitle>
-              <DialogDescription>
-                Unggah file CSV atau XLSX yang berisi data kehadiran. File harus memiliki kolom: Name, Date (YYYY-MM-DD), Status (present/absent/late/leave).
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">Pilih File</label>
-                <Input
-                  type="file"
-                  accept=".csv, .xlsx"
-                  onChange={handleImportFromFile}
-                />
+                <Key size={16} />
+                <span>Import from API Key</span>
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Import Data Kehadiran dengan API Key</DialogTitle>
+                <DialogDescription>
+                  Masukkan API Key untuk mengambil data kehadiran dari mesin absensi.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">API Key</label>
+                  <Input
+                    type="text"
+                    placeholder="Masukkan API Key"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                  />
+                </div>
               </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>Batal</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-        
-        <Button
-          variant="outline"
-          className="flex items-center gap-2"
-          onClick={handleSyncWithMachine}
-          disabled={isSyncing}
-        >
-          <Calendar size={16} />
-          <span>{isSyncing ? "Menyinkronkan..." : "Sinkronisasi Kalendar"}</span>
-        </Button>
-        
-        <Button variant="outline" size="icon">
-          <Download size={16} />
-        </Button>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsApiKeyDialogOpen(false)}>Batal</Button>
+                <Button onClick={handleImportWithApiKey} disabled={isSyncing}>
+                  {isSyncing ? "Menyinkronkan..." : "Sinkronkan"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          
+          {/* Button 3: Sync with Google Calendar */}
+          <Button
+            variant="outline"
+            className="flex items-center gap-2"
+            onClick={handleSyncWithGoogleCalendar}
+            disabled={isSyncing}
+          >
+            <Calendar size={16} />
+            <span>{isSyncing ? "Menyinkronkan..." : "Sync with Google Calendar"}</span>
+          </Button>
+          
+          <Button variant="outline" size="icon">
+            <Download size={16} />
+          </Button>
+        </div>
       </div>
-    </div>
-    
-    <Card>
-      <CardContent className="p-0">
-        {isLoading ? (
-          <div className="flex justify-center items-center py-8">
-            <svg className="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-          </div>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Tanggal</TableHead>
-                <TableHead>Hadir</TableHead>
-                <TableHead>Tidak Hadir</TableHead>
-                <TableHead>Terlambat</TableHead>
-                <TableHead>Cuti/Ketidakhadiran</TableHead>
-                <TableHead>Status Sinkronisasi</TableHead>
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {dailySummaries.map((row, index) => (
-                <TableRow key={index}>
-                  <TableCell className="font-medium">{row.date}</TableCell>
-                  <TableCell>{row.totalPresent}</TableCell>
-                  <TableCell>{row.totalAbsent}</TableCell>
-                  <TableCell>{row.totalLate}</TableCell>
-                  <TableCell>{row.onLeave}</TableCell>
-                  <TableCell>
-                    <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-                      {row.syncStatus}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Aksi</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem>Lihat Detail</DropdownMenuItem>
-                        <DropdownMenuItem>Edit Data</DropdownMenuItem>
-                        <DropdownMenuItem>Sinkronisasi Ulang</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+      
+      <Card>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="flex justify-center items-center py-8">
+              <svg className="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tanggal</TableHead>
+                  <TableHead>Hadir</TableHead>
+                  <TableHead>Tidak Hadir</TableHead>
+                  <TableHead>Terlambat</TableHead>
+                  <TableHead>Cuti/Ketidakhadiran</TableHead>
+                  <TableHead>Status Sinkronisasi</TableHead>
+                  <TableHead></TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </CardContent>
-    </Card>
-  </div>
-);
+              </TableHeader>
+              <TableBody>
+                {dailySummaries.map((row, index) => (
+                  <TableRow key={index}>
+                    <TableCell className="font-medium">{row.date}</TableCell>
+                    <TableCell>{row.totalPresent}</TableCell>
+                    <TableCell>{row.totalAbsent}</TableCell>
+                    <TableCell>{row.totalLate}</TableCell>
+                    <TableCell>{row.onLeave}</TableCell>
+                    <TableCell>
+                      <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                        {row.syncStatus}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Aksi</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem>Lihat Detail</DropdownMenuItem>
+                          <DropdownMenuItem>Edit Data</DropdownMenuItem>
+                          <DropdownMenuItem>Sinkronisasi Ulang</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
