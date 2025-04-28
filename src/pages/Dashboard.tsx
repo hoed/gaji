@@ -235,9 +235,9 @@ export default function Dashboard() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Projek PPh 21</CardTitle>
+            <CardTitle className="text-lg">Pajak PPh 21</CardTitle>
             <CardDescription>
-              Rp {(pph21 / 1_000_000).toFixed(1)} Jt Bulan April 2025
+              Rp {(pph21 / 1_000_000).toFixed(1)} Jt bulan terakhir
             </CardDescription>
           </CardHeader>
         </Card>
