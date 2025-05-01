@@ -26,16 +26,40 @@ interface PayrollEvent {
   description: string | null;
   created_at: string;
   updated_at: string;
-  payroll_id?: string | null;           // New field to connect to payroll table
-  calendar_event_id?: string | null;    // New field to connect to calendar_events table
-  attendance_id?: string | null;        // New field to connect to attendance table
+  payroll_id?: string | null;           // Foreign key to connect to payroll table
+  attendance_id?: string | null;        // Foreign key to connect to attendance table
+  calendar_event_id?: string | null;    // Foreign key to connect to calendar_events table
+  
+  // Related data from joins
+  payroll?: {
+    id: string;
+    basic_salary: number;
+    net_salary: number;
+    // Other payroll fields as needed
+  } | null;
+  
+  attendance?: {
+    id: string;
+    date: string;
+    check_in: string | null;
+    check_out: string | null;
+    // Other attendance fields as needed
+  } | null;
+  
+  calendar_events?: {
+    id: string;
+    title: string;
+    start_time: string;
+    end_time: string;
+    // Other calendar_events fields as needed
+  } | null;
 }
 
 // Define interface for calendar events (based on calendar_events table)
 interface CalendarEvent {
   id: string;
   title: string;
-  event_type: string;
+  event_type?: string;
   start_time: string;
   end_time: string;
   description: string | null;
@@ -46,25 +70,15 @@ interface CalendarEvent {
   created_at: string;
   updated_at: string;
   is_synced: boolean;
-  payroll_event_id?: string | null;     // New field to reference payroll_events
-}
-
-// Intermediate interface for handling the attendance data from Supabase
-interface AttendanceEventData {
-  id: string;
-  title: string;
-  start_time: string;
-  end_time: string;
-  description: string | null;
-  check_in: string | null;
-  check_out: string | null;
-  earliest_check_in_attendance_id: string | null;
-  latest_check_out_attendance_id: string | null;
-  created_at: string;
-  updated_at: string;
-  is_synced: boolean;
-  api_key_id?: string | null;
-  payroll_event_id?: string | null;     // New field to reference payroll_events
+  payroll_event_id?: string | null;     // Foreign key to reference payroll_events
+  
+  // Related data from joins
+  payroll_events?: {
+    id: string;
+    title: string;
+    event_type: string;
+    // Other payroll_events fields as needed
+  } | null;
 }
 
 // Group events by date for badges
@@ -88,38 +102,52 @@ export default function CalendarPage() {
     const fetchEvents = async () => {
       setIsLoading(true);
       try {
-        // Fetch payroll events for April 2025
+        // Fetch payroll events for April 2025 with related data
         const startDate = "2025-04-01";
         const endDate = "2025-04-30";
+        
+        // Improved query with proper join relationships
         const { data: payrollData, error: payrollError } = await supabase
           .from("payroll_events")
-          .select("*, payroll(*), calendar_events(*), attendance(*)")  // Update to include related data
+          .select(`
+            *,
+            payroll(*),
+            calendar_events(*),
+            attendance(*)
+          `)
           .gte("start_time", startDate)
           .lte("end_time", endDate);
 
-        if (payrollError) throw payrollError;
+        if (payrollError) {
+          console.error("Error fetching payroll events:", payrollError);
+          throw payrollError;
+        }
+        
         const typedPayrollData = payrollData as PayrollEvent[] || [];
         setPayrollEvents(typedPayrollData);
 
-        // Fetch attendance events for April 2025
+        // Fetch attendance events for April 2025 with related payroll event data
         const { data: attendanceData, error: attendanceError } = await supabase
           .from("calendar_events")
-          .select("*, payroll_events(*)")  // Update to include related data
+          .select(`
+            *,
+            payroll_events(*)
+          `)
           .gte("start_time", startDate)
           .lte("end_time", endDate);
 
-        if (attendanceError) throw attendanceError;
+        if (attendanceError) {
+          console.error("Error fetching attendance events:", attendanceError);
+          throw attendanceError;
+        }
         
-        // Fix: Explicitly cast and transform the data with proper type annotations
-        const typedAttendanceData = attendanceData as AttendanceEventData[] || [];
-        const transformedAttendanceData = typedAttendanceData.map(event => {
-          return {
-            ...event,
-            event_type: 'attendance'
-          } as CalendarEvent;
-        });
+        // Transform attendance data with proper typing
+        const typedAttendanceData = (attendanceData || []).map(event => ({
+          ...event,
+          event_type: 'attendance'
+        })) as CalendarEvent[];
 
-        setAttendanceEvents(transformedAttendanceData);
+        setAttendanceEvents(typedAttendanceData);
 
         // Group events by date
         const groupedEvents: EventsByDate = {};
@@ -134,7 +162,7 @@ export default function CalendarPage() {
         });
         
         // Group attendance events
-        transformedAttendanceData.forEach(event => {
+        typedAttendanceData.forEach(event => {
           const dateKey = new Date(event.start_time).toISOString().split('T')[0];
           if (!groupedEvents[dateKey]) {
             groupedEvents[dateKey] = { payroll: [], attendance: [] };
@@ -328,6 +356,13 @@ export default function CalendarPage() {
                               {event.description && (
                                 <p className="text-sm mt-1">{event.description}</p>
                               )}
+                              {event.payroll && (
+                                <div className="mt-2 text-sm">
+                                  <p className="font-medium text-green-700">Data Gaji:</p>
+                                  <p>Gaji Dasar: Rp {event.payroll.basic_salary?.toLocaleString('id-ID')}</p>
+                                  <p>Gaji Bersih: Rp {event.payroll.net_salary?.toLocaleString('id-ID')}</p>
+                                </div>
+                              )}
                             </div>
                             <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200">
                               {event.event_type}
@@ -373,6 +408,12 @@ export default function CalendarPage() {
                               )}
                               {event.description && (
                                 <p className="text-sm mt-1 whitespace-pre-line">{event.description}</p>
+                              )}
+                              {event.payroll_events && (
+                                <div className="mt-2 text-sm">
+                                  <p className="font-medium text-blue-700">Terkait dengan:</p>
+                                  <p>{event.payroll_events.title} ({event.payroll_events.event_type})</p>
+                                </div>
                               )}
                             </div>
                             <Badge variant={event.is_synced ? "success" : "gray"} className="h-6">

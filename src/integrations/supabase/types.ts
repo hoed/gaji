@@ -74,6 +74,7 @@ export type Database = {
           date: string
           employee_id: string | null
           id: string
+          payroll_event_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -84,6 +85,7 @@ export type Database = {
           date: string
           employee_id?: string | null
           id?: string
+          payroll_event_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -94,9 +96,17 @@ export type Database = {
           date?: string
           employee_id?: string | null
           id?: string
+          payroll_event_id?: string | null
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "attendance_payroll_event_id_fkey"
+            columns: ["payroll_event_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_events"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "fk_attendance_api_key"
             columns: ["api_key_id"]
@@ -125,6 +135,7 @@ export type Database = {
           id: string
           is_synced: boolean | null
           latest_check_out_attendance_id: string | null
+          payroll_event_id: string | null
           start_time: string
           title: string
           updated_at: string | null
@@ -140,6 +151,7 @@ export type Database = {
           id?: string
           is_synced?: boolean | null
           latest_check_out_attendance_id?: string | null
+          payroll_event_id?: string | null
           start_time: string
           title: string
           updated_at?: string | null
@@ -155,6 +167,7 @@ export type Database = {
           id?: string
           is_synced?: boolean | null
           latest_check_out_attendance_id?: string | null
+          payroll_event_id?: string | null
           start_time?: string
           title?: string
           updated_at?: string | null
@@ -172,6 +185,13 @@ export type Database = {
             columns: ["latest_check_out_attendance_id"]
             isOneToOne: false
             referencedRelation: "attendance"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_events_payroll_event_id_fkey"
+            columns: ["payroll_event_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_events"
             referencedColumns: ["id"]
           },
           {
@@ -389,36 +409,67 @@ export type Database = {
       }
       payroll_events: {
         Row: {
+          attendance_id: string | null
+          calendar_event_id: string | null
           created_at: string | null
           description: string | null
           end_time: string
           event_type: string
           id: string
+          payroll_id: string | null
           start_time: string
           title: string
           updated_at: string | null
         }
         Insert: {
+          attendance_id?: string | null
+          calendar_event_id?: string | null
           created_at?: string | null
           description?: string | null
           end_time: string
           event_type: string
           id?: string
+          payroll_id?: string | null
           start_time: string
           title: string
           updated_at?: string | null
         }
         Update: {
+          attendance_id?: string | null
+          calendar_event_id?: string | null
           created_at?: string | null
           description?: string | null
           end_time?: string
           event_type?: string
           id?: string
+          payroll_id?: string | null
           start_time?: string
           title?: string
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "payroll_events_attendance_id_fkey"
+            columns: ["attendance_id"]
+            isOneToOne: false
+            referencedRelation: "attendance"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_events_calendar_event_id_fkey"
+            columns: ["calendar_event_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_events_payroll_id_fkey"
+            columns: ["payroll_id"]
+            isOneToOne: false
+            referencedRelation: "payroll"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       positions: {
         Row: {
