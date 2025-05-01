@@ -60,6 +60,7 @@ type EventsByDate = {
 export default function CalendarPage() {
   const [payrollEvents, setPayrollEvents] = useState<PayrollEvent[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<CalendarEvent[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [isLoading, setIsLoading] = useState(true);
   const [eventsByDate, setEventsByDate] = useState<EventsByDate>({});
@@ -289,6 +290,25 @@ export default function CalendarPage() {
               </ul>
             )}
           </CardContent>
+          <CardContent>
+                      <ul className="space-y-2">
+                        {upcomingEvents.map(event => (
+                          <li key={event.id} className="flex justify-between items-center">
+                            <div>
+                              <p className="font-medium">
+                                {new Date(event.start_time).toLocaleDateString("id-ID", {
+                                  day: "numeric",
+                                  month: "long",
+                                  year: "numeric",
+                                })}{" "}
+                                {event.title}
+                              </p>
+                            </div>
+                            <span className="text-yellow-600 font-medium">Mendatang</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </CardContent>
         </Card>
       </div>
     </div>
