@@ -94,23 +94,26 @@ export default function CalendarPage() {
           .lte("end_time", endDate);
 
         if (payrollError) throw payrollError;
-        setPayrollEvents(payrollData as PayrollEvent[] || []);
+        const typedPayrollData = payrollData as PayrollEvent[] || [];
+        setPayrollEvents(typedPayrollData);
 
         // Fetch attendance events for April 2025
         const { data: attendanceData, error: attendanceError } = await supabase
           .from("calendar_events")
           .select("*")
           .gte("start_time", startDate)
-          .lte("end_time", endDate)
-          .eq("event_type", "attendance");
+          .lte("end_time", endDate);
 
         if (attendanceError) throw attendanceError;
         
-        // Transform the attendance data to ensure it has event_type
-        const transformedAttendanceData = (attendanceData || []).map((event: AttendanceEventData) => ({
-          ...event,
-          event_type: 'attendance'
-        })) as CalendarEvent[];
+        // Fix: Explicitly cast and transform the data with proper type annotations
+        const typedAttendanceData = attendanceData as AttendanceEventData[] || [];
+        const transformedAttendanceData = typedAttendanceData.map(event => {
+          return {
+            ...event,
+            event_type: 'attendance'
+          } as CalendarEvent;
+        });
 
         setAttendanceEvents(transformedAttendanceData);
 
@@ -118,7 +121,7 @@ export default function CalendarPage() {
         const groupedEvents: EventsByDate = {};
         
         // Group payroll events
-        payrollData?.forEach(event => {
+        typedPayrollData.forEach(event => {
           const dateKey = new Date(event.start_time).toISOString().split('T')[0];
           if (!groupedEvents[dateKey]) {
             groupedEvents[dateKey] = { payroll: [], attendance: [] };
@@ -227,12 +230,15 @@ export default function CalendarPage() {
               onSelect={setSelectedDate}
               className="border rounded-md p-3"
               components={{
-                DayContent: ({ date, ...props }: DayContentProps) => (
-                  <div className="relative w-full h-full flex flex-col items-center">
-                    <div className="day-content" {...props} />
-                    {renderDayContent(date)}
-                  </div>
-                ),
+                DayContent: (props: DayContentProps) => {
+                  const { date } = props;
+                  return (
+                    <div className="relative w-full h-full flex flex-col items-center">
+                      <div className="day-content" {...props} />
+                      {renderDayContent(date)}
+                    </div>
+                  );
+                },
               }}
             />
             <div className="mt-4 flex flex-wrap gap-2">
