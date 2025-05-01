@@ -1,3 +1,4 @@
+
 /* src/pages/Calendar.tsx */
 import { useState, useEffect } from "react";
 import {
@@ -106,7 +107,7 @@ export default function CalendarPage() {
         if (attendanceError) throw attendanceError;
         
         // Transform the attendance data to ensure it has event_type
-        const transformedAttendanceData = (attendanceData || []).map((event) => ({
+        const transformedAttendanceData = (attendanceData || []).map((event: AttendanceEventData) => ({
           ...event,
           event_type: 'attendance'
         })) as CalendarEvent[];
@@ -191,7 +192,7 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
         <div>
           <h1 className="text-3xl font-bold">Kalender</h1>
           <p className="text-muted-foreground">
@@ -200,16 +201,16 @@ export default function CalendarPage() {
         </div>
         <Button 
           onClick={syncWithGoogleCalendar} 
-          className="flex items-center gap-2"
+          className="flex items-center gap-2 w-full sm:w-auto"
         >
           <CalendarClock className="h-4 w-4" />
           Sync to Google Calendar
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Calendar Card */}
-        <Card className="md:col-span-1">
+        <Card className="lg:col-span-1 h-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CalendarIcon className="h-5 w-5" />
@@ -226,10 +227,10 @@ export default function CalendarPage() {
               onSelect={setSelectedDate}
               className="border rounded-md p-3"
               components={{
-                DayContent: (props: DayContentProps) => (
+                DayContent: ({ date, ...props }: DayContentProps) => (
                   <div className="relative w-full h-full flex flex-col items-center">
-                    <div {...props} />
-                    {renderDayContent(props.date)}
+                    <div className="day-content" {...props} />
+                    {renderDayContent(date)}
                   </div>
                 ),
               }}
@@ -248,7 +249,7 @@ export default function CalendarPage() {
         </Card>
 
         {/* Events List Card */}
-        <Card className="md:col-span-2">
+        <Card className="lg:col-span-2 h-full">
           <CardHeader>
             <CardTitle>
               {selectedDate ? (
