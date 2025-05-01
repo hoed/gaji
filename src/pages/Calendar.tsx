@@ -96,7 +96,6 @@ export default function CalendarPage() {
     const fetchEvents = async () => {
       setIsLoading(true);
       try {
-        // Fetch payroll events for April 2025 with related data
         const startDate = "2025-04-01";
         const endDate = "2025-04-30";
         
@@ -119,7 +118,6 @@ export default function CalendarPage() {
         const typedPayrollData = payrollData as PayrollEvent[] || [];
         setPayrollEvents(typedPayrollData);
 
-        // Fetch attendance events for April 2025 with related payroll event data
         const { data: attendanceData, error: attendanceError } = await supabase
           .from("calendar_events")
           .select(`
@@ -141,7 +139,6 @@ export default function CalendarPage() {
 
         setAttendanceEvents(typedAttendanceData);
 
-        // Group events by date
         const groupedEvents: EventsByDate = {};
         
         typedPayrollData.forEach(event => {
@@ -181,16 +178,19 @@ export default function CalendarPage() {
     const dateKey = day.toISOString().split('T')[0];
     const events = eventsByDate[dateKey];
     
-    if (!events) return null;
+    if (!events) return <div className="text-foreground">{day.getDate()}</div>;
     
     return (
-      <div className="flex flex-col items-center gap-0.5 mt-1">
-        {events.payroll.length > 0 && (
-          <CalendarBadge type="payroll" count={events.payroll.length} />
-        )}
-        {events.attendance.length > 0 && (
-          <CalendarBadge type="attendance" count={events.attendance.length} />
-        )}
+      <div className="flex flex-col items-center gap-0.5">
+        <div className="text-foreground">{day.getDate()}</div>
+        <div className="flex gap-0.5">
+          {events.payroll.length > 0 && (
+            <CalendarBadge type="payroll" count={events.payroll.length} className="text-xs w-4 h-4" />
+          )}
+          {events.attendance.length > 0 && (
+            <CalendarBadge type="attendance" count={events.attendance.length} className="text-xs w-4 h-4" />
+          )}
+        </div>
       </div>
     );
   };
@@ -204,17 +204,14 @@ export default function CalendarPage() {
     });
   };
   
-  const filteredPayrollEvents = selectedDate 
-    ? payrollEvents.filter(event => 
-        isSameDay(new Date(event.start_time), selectedDate)) 
-    : [];
-  
-  const filteredAttendanceEvents = selectedDate 
-    ? attendanceEvents.filter(event => 
-        isSameDay(new Date(event.start_time), selectedDate)) 
-    : [];
+  // Combine and filter events for the selected date
+  const filteredEvents = selectedDate
+    ? [...payrollEvents, ...attendanceEvents].filter(event =>
+        isSameDay(new Date(event.start_time), selectedDate)
+      )
+    : [...payrollEvents, ...attendanceEvents];
 
-  // Determine if an event is upcoming (after current date)
+  // Determine if an event is upcoming
   const isUpcoming = (event: PayrollEvent | CalendarEvent) => {
     return new Date(event.start_time) > new Date();
   };
@@ -260,7 +257,6 @@ export default function CalendarPage() {
                   const { date } = props;
                   return (
                     <div className="relative w-full h-full flex flex-col items-center">
-                      <div className="text-foreground" {...props} />
                       {renderDayContent(date)}
                     </div>
                   );
@@ -269,11 +265,11 @@ export default function CalendarPage() {
             />
             <div className="mt-4 flex flex-wrap gap-2">
               <div className="flex items-center gap-1">
-                <CalendarBadge type="payroll" />
+                <CalendarBadge type="payroll" className="text-xs w-4 h-4" />
                 <span className="text-xs text-muted-foreground">Gaji</span>
               </div>
               <div className="flex items-center gap-1">
-                <CalendarBadge type="attendance" />
+                <CalendarBadge type="attendance" className="text-xs w-4 h-4" />
                 <span className="text-xs text-muted-foreground">Kehadiran</span>
               </div>
             </div>
@@ -284,11 +280,9 @@ export default function CalendarPage() {
         <Card className="lg:col-span-2 h-full">
           <CardHeader>
             <CardTitle>
-              {selectedDate ? (
-                <>Event pada {format(selectedDate, "dd MMMM yyyy")}</>
-              ) : (
-                <>Semua Event</>
-              )}
+              {selectedDate
+                ? `Event pada ${format(selectedDate, "dd MMMM yyyy")}`
+                : "Semua Event"}
             </CardTitle>
             <CardDescription>
               Detail event penggajian dan kehadiran karyawan
@@ -303,69 +297,29 @@ export default function CalendarPage() {
                 </svg>
               </div>
             ) : (
-              <div className="space-y-6">
-                {/* Payroll Events Section */}
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <Badge variant="success" className="h-6">Payroll Events</Badge>
-                    <CalendarCheck className="h-4 w-4 text-green-600" />
-                  </div>
-                  {filteredPayrollEvents.length === 0 ? (
-                    <p className="text-muted-foreground">Tidak ada event penggajian untuk tanggal ini.</p>
-                  ) : (
-                    <ul className="space-y-2">
-                      {filteredPayrollEvents.map(event => (
-                        <li key={event.id} className="flex justify-between items-center">
-                          <div>
-                            <p className="font-medium text-foreground">
-                              {new Date(event.start_time).toLocaleDateString("id-ID", {
-                                day: "numeric",
-                                month: "long",
-                                year: "numeric",
-                              })}{" "}
-                              {event.title}
-                            </p>
-                          </div>
-                          {isUpcoming(event) && (
-                            <span className="text-yellow-600 font-medium">Mendatang</span>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-
-                {/* Employee Attendance Section */}
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <Badge variant="info" className="h-6">Attendance Events</Badge>
-                    <CalendarCheck className="h-4 w-4 text-blue-600" />
-                  </div>
-                  {filteredAttendanceEvents.length === 0 ? (
-                    <p className="text-muted-foreground">Tidak ada data kehadiran untuk tanggal ini.</p>
-                  ) : (
-                    <ul className="space-y-2">
-                      {filteredAttendanceEvents.map(event => (
-                        <li key={event.id} className="flex justify-between items-center">
-                          <div>
-                            <p className="font-medium text-foreground">
-                              {new Date(event.start_time).toLocaleDateString("id-ID", {
-                                day: "numeric",
-                                month: "long",
-                                year: "numeric",
-                              })}{" "}
-                              {event.title}
-                            </p>
-                          </div>
-                          {isUpcoming(event) && (
-                            <span className="text-yellow-600 font-medium">Mendatang</span>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </div>
+              <ul className="space-y-2">
+                {filteredEvents.length === 0 ? (
+                  <p className="text-muted-foreground">Tidak ada event untuk tanggal ini.</p>
+                ) : (
+                  filteredEvents.map(event => (
+                    <li key={event.id} className="flex justify-between items-center">
+                      <div>
+                        <p className="font-medium text-foreground">
+                          {new Date(event.start_time).toLocaleDateString("id-ID", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          })}{" "}
+                          {event.title}
+                        </p>
+                      </div>
+                      {isUpcoming(event) && (
+                        <span className="text-yellow-600 font-medium">Mendatang</span>
+                      )}
+                    </li>
+                  ))
+                )}
+              </ul>
             )}
           </CardContent>
         </Card>
