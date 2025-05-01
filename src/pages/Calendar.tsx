@@ -234,7 +234,7 @@ export default function CalendarPage() {
                   const { date } = props;
                   return (
                     <div className="relative w-full h-full flex flex-col items-center">
-                      <div className="day-content" {...props} />
+                      <div className="day-content text-foreground" {...props} />
                       {renderDayContent(date)}
                     </div>
                   );
