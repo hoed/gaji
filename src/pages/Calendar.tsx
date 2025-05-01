@@ -26,16 +26,14 @@ interface PayrollEvent {
   description: string | null;
   created_at: string;
   updated_at: string;
-  payroll_id?: string | null;           // Foreign key to connect to payroll table
-  attendance_id?: string | null;        // Foreign key to connect to attendance table
-  calendar_event_id?: string | null;    // Foreign key to connect to calendar_events table
+  payroll_id?: string | null;
+  attendance_id?: string | null;
+  calendar_event_id?: string | null;
   
-  // Related data from joins
   payroll?: {
     id: string;
     basic_salary: number;
     net_salary: number;
-    // Other payroll fields as needed
   } | null;
   
   attendance?: {
@@ -43,7 +41,6 @@ interface PayrollEvent {
     date: string;
     check_in: string | null;
     check_out: string | null;
-    // Other attendance fields as needed
   } | null;
   
   calendar_events?: {
@@ -51,7 +48,6 @@ interface PayrollEvent {
     title: string;
     start_time: string;
     end_time: string;
-    // Other calendar_events fields as needed
   } | null;
 }
 
@@ -70,14 +66,12 @@ interface CalendarEvent {
   created_at: string;
   updated_at: string;
   is_synced: boolean;
-  payroll_event_id?: string | null;     // Foreign key to reference payroll_events
+  payroll_event_id?: string | null;
   
-  // Related data from joins
   payroll_events?: {
     id: string;
     title: string;
     event_type: string;
-    // Other payroll_events fields as needed
   } | null;
 }
 
@@ -106,7 +100,6 @@ export default function CalendarPage() {
         const startDate = "2025-04-01";
         const endDate = "2025-04-30";
         
-        // Improved query with proper join relationships
         const { data: payrollData, error: payrollError } = await supabase
           .from("payroll_events")
           .select(`
@@ -141,7 +134,6 @@ export default function CalendarPage() {
           throw attendanceError;
         }
         
-        // Transform attendance data with proper typing
         const typedAttendanceData = (attendanceData || []).map(event => ({
           ...event,
           event_type: 'attendance'
@@ -152,7 +144,6 @@ export default function CalendarPage() {
         // Group events by date
         const groupedEvents: EventsByDate = {};
         
-        // Group payroll events
         typedPayrollData.forEach(event => {
           const dateKey = new Date(event.start_time).toISOString().split('T')[0];
           if (!groupedEvents[dateKey]) {
@@ -161,7 +152,6 @@ export default function CalendarPage() {
           groupedEvents[dateKey].payroll.push(event);
         });
         
-        // Group attendance events
         typedAttendanceData.forEach(event => {
           const dateKey = new Date(event.start_time).toISOString().split('T')[0];
           if (!groupedEvents[dateKey]) {
@@ -194,7 +184,7 @@ export default function CalendarPage() {
     if (!events) return null;
     
     return (
-      <div className="flex flex-wrap gap-0.5 mt-1 justify-center">
+      <div className="flex flex-col items-center gap-0.5 mt-1">
         {events.payroll.length > 0 && (
           <CalendarBadge type="payroll" count={events.payroll.length} />
         )}
@@ -207,7 +197,6 @@ export default function CalendarPage() {
 
   // Function to sync with Google Calendar
   const syncWithGoogleCalendar = () => {
-    // This is a placeholder. In a real implementation, you would integrate with Google Calendar API
     toast({
       title: "Google Calendar",
       description: "Sinkronisasi dengan Google Calendar akan segera tersedia.",
@@ -224,6 +213,11 @@ export default function CalendarPage() {
     ? attendanceEvents.filter(event => 
         isSameDay(new Date(event.start_time), selectedDate)) 
     : [];
+
+  // Determine if an event is upcoming (after current date)
+  const isUpcoming = (event: PayrollEvent | CalendarEvent) => {
+    return new Date(event.start_time) > new Date();
+  };
 
   return (
     <div className="space-y-6">
@@ -266,7 +260,7 @@ export default function CalendarPage() {
                   const { date } = props;
                   return (
                     <div className="relative w-full h-full flex flex-col items-center">
-                      <div className="day-content text-foreground" {...props} />
+                      <div className="text-foreground" {...props} />
                       {renderDayContent(date)}
                     </div>
                   );
@@ -319,55 +313,22 @@ export default function CalendarPage() {
                   {filteredPayrollEvents.length === 0 ? (
                     <p className="text-muted-foreground">Tidak ada event penggajian untuk tanggal ini.</p>
                   ) : (
-                    <ul className="space-y-4">
+                    <ul className="space-y-2">
                       {filteredPayrollEvents.map(event => (
-                        <li key={event.id} className="border-l-4 border-green-500 pl-4 bg-green-50/50 p-3 rounded-md">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <h4 className="font-medium">{event.title}</h4>
-                              <p className="text-sm text-muted-foreground">
-                                {new Date(event.start_time).toLocaleDateString("id-ID", {
-                                  day: "numeric",
-                                  month: "long",
-                                  year: "numeric",
-                                })}
-                                {event.start_time !== event.end_time && (
-                                  <>
-                                    {" - "}
-                                    {new Date(event.end_time).toLocaleDateString("id-ID", {
-                                      day: "numeric",
-                                      month: "long",
-                                      year: "numeric",
-                                    })}
-                                  </>
-                                )}
-                              </p>
-                              <p className="text-sm text-muted-foreground mt-1">
-                                {new Date(event.start_time).toLocaleTimeString("id-ID", {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                                {" - "}
-                                {new Date(event.end_time).toLocaleTimeString("id-ID", {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                              </p>
-                              {event.description && (
-                                <p className="text-sm mt-1">{event.description}</p>
-                              )}
-                              {event.payroll && (
-                                <div className="mt-2 text-sm">
-                                  <p className="font-medium text-green-700">Data Gaji:</p>
-                                  <p>Gaji Dasar: Rp {event.payroll.basic_salary?.toLocaleString('id-ID')}</p>
-                                  <p>Gaji Bersih: Rp {event.payroll.net_salary?.toLocaleString('id-ID')}</p>
-                                </div>
-                              )}
-                            </div>
-                            <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200">
-                              {event.event_type}
-                            </Badge>
+                        <li key={event.id} className="flex justify-between items-center">
+                          <div>
+                            <p className="font-medium text-foreground">
+                              {new Date(event.start_time).toLocaleDateString("id-ID", {
+                                day: "numeric",
+                                month: "long",
+                                year: "numeric",
+                              })}{" "}
+                              {event.title}
+                            </p>
                           </div>
+                          {isUpcoming(event) && (
+                            <span className="text-yellow-600 font-medium">Mendatang</span>
+                          )}
                         </li>
                       ))}
                     </ul>
@@ -383,43 +344,22 @@ export default function CalendarPage() {
                   {filteredAttendanceEvents.length === 0 ? (
                     <p className="text-muted-foreground">Tidak ada data kehadiran untuk tanggal ini.</p>
                   ) : (
-                    <ul className="space-y-4">
+                    <ul className="space-y-2">
                       {filteredAttendanceEvents.map(event => (
-                        <li key={event.id} className="border-l-4 border-blue-500 pl-4 bg-blue-50/50 p-3 rounded-md">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <h4 className="font-medium">{event.title}</h4>
-                              <p className="text-sm text-muted-foreground">
-                                {new Date(event.start_time).toLocaleDateString("id-ID", {
-                                  day: "numeric",
-                                  month: "long",
-                                  year: "numeric",
-                                })}
-                              </p>
-                              {event.check_in && (
-                                <p className="text-sm">
-                                  Check-in Paling Awal: {new Date(event.check_in).toLocaleTimeString("id-ID")}
-                                </p>
-                              )}
-                              {event.check_out && (
-                                <p className="text-sm">
-                                  Check-out Paling Akhir: {new Date(event.check_out).toLocaleTimeString("id-ID")}
-                                </p>
-                              )}
-                              {event.description && (
-                                <p className="text-sm mt-1 whitespace-pre-line">{event.description}</p>
-                              )}
-                              {event.payroll_events && (
-                                <div className="mt-2 text-sm">
-                                  <p className="font-medium text-blue-700">Terkait dengan:</p>
-                                  <p>{event.payroll_events.title} ({event.payroll_events.event_type})</p>
-                                </div>
-                              )}
-                            </div>
-                            <Badge variant={event.is_synced ? "success" : "gray"} className="h-6">
-                              {event.is_synced ? "Tersinkronisasi" : "Belum Tersinkronisasi"}
-                            </Badge>
+                        <li key={event.id} className="flex justify-between items-center">
+                          <div>
+                            <p className="font-medium text-foreground">
+                              {new Date(event.start_time).toLocaleDateString("id-ID", {
+                                day: "numeric",
+                                month: "long",
+                                year: "numeric",
+                              })}{" "}
+                              {event.title}
+                            </p>
                           </div>
+                          {isUpcoming(event) && (
+                            <span className="text-yellow-600 font-medium">Mendatang</span>
+                          )}
                         </li>
                       ))}
                     </ul>
