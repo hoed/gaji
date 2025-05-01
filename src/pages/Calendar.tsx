@@ -1,4 +1,3 @@
-
 /* src/pages/Calendar.tsx */
 import { useState, useEffect } from "react";
 import {
@@ -9,7 +8,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar as CalendarUI } from "@/components/ui/calendar";
+import { Calendar as CalendarUI, DayContentProps } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format, isSameDay } from "date-fns";
@@ -107,12 +106,12 @@ export default function CalendarPage() {
         if (attendanceError) throw attendanceError;
         
         // Transform the attendance data to ensure it has event_type
-        const transformedAttendanceData = (attendanceData || []).map((event: AttendanceEventData) => ({
+        const transformedAttendanceData = (attendanceData || []).map((event) => ({
           ...event,
           event_type: 'attendance'
-        }));
+        })) as CalendarEvent[];
 
-        setAttendanceEvents(transformedAttendanceData as CalendarEvent[]);
+        setAttendanceEvents(transformedAttendanceData);
 
         // Group events by date
         const groupedEvents: EventsByDate = {};
@@ -227,10 +226,10 @@ export default function CalendarPage() {
               onSelect={setSelectedDate}
               className="border rounded-md p-3"
               components={{
-                DayContent: ({ day, ...props }: { day: Date; [key: string]: any }) => (
+                DayContent: (props: DayContentProps) => (
                   <div className="relative w-full h-full flex flex-col items-center">
                     <div {...props} />
-                    {renderDayContent(day)}
+                    {renderDayContent(props.date)}
                   </div>
                 ),
               }}
