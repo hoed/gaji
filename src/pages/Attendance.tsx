@@ -77,10 +77,10 @@ interface CalendarEvent {
   event_type: string;
   start_time: string;
   end_time: string;
-  check_in?: string | null; // Earliest check-in time for the day
-  check_out?: string | null; // Latest check-out time for the day
-  earliest_check_in_attendance_id?: string | null; // ID of attendance record with earliest check_in
-  latest_check_out_attendance_id?: string | null; // ID of attendance record with latest check_out
+  check_in?: string | null;
+  check_out?: string | null;
+  earliest_check_in_attendance_id?: string | null;
+  latest_check_out_attendance_id?: string | null;
   created_at?: string;
   updated_at?: string;
   is_synced: boolean;
@@ -97,7 +97,7 @@ const computeStatus = (checkIn: string | null, statusFromSource: string): Attend
   const checkInTime = new Date(checkIn);
   const hours = checkInTime.getHours();
   const minutes = checkInTime.getMinutes();
-  const isLate = hours > 9 || (hours === 9 && minutes > 0); // Late if after 09:00
+  const isLate = hours > 9 || (hours === 9 && minutes > 0);
   return isLate ? "late" : "present";
 };
 
@@ -132,7 +132,15 @@ export default function Attendance() {
   const [isSyncing, setIsSyncing] = useState(false);
   const { toast } = useToast();
 
-  // Fetch attendance, absences, and employees data
+  // Get current month and year for real-time data
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth();
+  const startDate = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-01`;
+  const endDate = new Date(currentYear, currentMonth + 1, 0).toISOString().split("T")[0];
+  const monthLabel = currentDate.toLocaleDateString("id-ID", { month: "long", year: "numeric" });
+
+  // Fetch attendance, absences, and employees data for the current month
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
@@ -144,7 +152,6 @@ export default function Attendance() {
 
         if (employeesError) throw employeesError;
 
-        // Enrich employees data with full_name
         const enrichedEmployees: EmployeeData[] = (employeesData || []).map(emp => ({
           id: emp.id,
           first_name: emp.first_name,
@@ -155,9 +162,7 @@ export default function Attendance() {
         }));
         setEmployees(enrichedEmployees);
 
-        // Fetch attendance for April 2025
-        const startDate = "2025-04-01";
-        const endDate = "2025-04-30";
+        // Fetch attendance for the current month
         const { data: attendanceData, error: attendanceError } = await supabase
           .from("attendance")
           .select("*")
@@ -167,7 +172,7 @@ export default function Attendance() {
         if (attendanceError) throw attendanceError;
         setAttendanceData(attendanceData || []);
 
-        // Fetch absences for April 2025
+        // Fetch absences for the current month
         const { data: absencesData, error: absencesError } = await supabase
           .from("absences")
           .select("*")
@@ -183,7 +188,7 @@ export default function Attendance() {
         dates.forEach(date => {
           const dayRecords = attendanceData.filter(att => att.date === date);
           const dayAbsences = (absencesData as Tables<"absences">[]).filter(abs => abs.date === date);
-          const leaveCount = dayAbsences.length; // Absences table will track leave as well
+          const leaveCount = dayAbsences.length;
           const summary: DailySummary = {
             date: new Date(date).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }),
             totalPresent: dayRecords.filter(att => computeStatus(att.check_in, "present") === "present").length,
@@ -208,7 +213,7 @@ export default function Attendance() {
       }
     };
     fetchData();
-  }, [toast]);
+  }, [toast, startDate, endDate]);
 
   // Aggregate data for cards
   const totalDays = dailySummaries.length;
@@ -223,7 +228,6 @@ export default function Attendance() {
 
   // Common logic to process attendance records (used by both file import and API sync)
   const processAttendanceRecords = async (jsonData: AttendanceMachineRecord[]) => {
-    // Initialize import status
     const importStatus: ImportStatus = {
       timestamp: new Date().toLocaleString("id-ID", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }),
       totalRecords: jsonData.length,
@@ -232,7 +236,6 @@ export default function Attendance() {
       mismatches: [],
     };
 
-    // Map the data to the attendance and absences tables
     const attendanceRecords: TablesInsert<"attendance">[] = [];
     const absenceRecords: TablesInsert<"absences">[] = [];
     const calendarEvents: CalendarEvent[] = [];
@@ -243,19 +246,16 @@ export default function Attendance() {
       const date = row["Date"];
       const status = row["Status"];
 
-      // Validate required fields
       if (!employeeName || !date || !status) {
         importStatus.errors.push(`Baris dengan Name: "${employeeName || "Tidak ada"}", Date: "${date || "Tidak ada"}" - Kolom Name, Date, dan Status wajib ada.`);
         continue;
       }
 
-      // Validate status
       if (!["present", "absent", "late", "leave"].includes(status.toLowerCase())) {
         importStatus.errors.push(`Baris dengan Name: "${employeeName}", Date: "${date}" - Status tidak valid: ${status}. Harus berupa present, absent, late, atau leave.`);
         continue;
       }
 
-      // Find employee by name
       const employee = employees.find(emp => emp.full_name === employeeName);
       if (!employee) {
         importStatus.mismatches.push({
@@ -265,7 +265,6 @@ export default function Attendance() {
         continue;
       }
 
-      // Check for duplicate attendance record for the employee on the same date
       const existingAttendance = attendanceData.find(
         att => att.employee_id === employee.id && att.date === date
       );
@@ -277,7 +276,6 @@ export default function Attendance() {
         continue;
       }
 
-      // Check for duplicate absence record for the employee on the same date
       const existingAbsence = absencesData.find(
         abs => abs.employee_id === employee.id && abs.date === date
       );
@@ -289,7 +287,6 @@ export default function Attendance() {
         continue;
       }
 
-      // Create attendance record (convert status to check_in/check_out)
       const checkIn = status.toLowerCase() === "absent" || status.toLowerCase() === "leave"
         ? null
         : new Date(`${date}T${status.toLowerCase() === "late" ? "09:15" : "08:00"}:00Z`).toISOString();
@@ -307,7 +304,6 @@ export default function Attendance() {
       };
       attendanceRecords.push(attendanceRecord);
 
-      // Create absence record if status is "absent" or "leave"
       if (status.toLowerCase() === "absent" || status.toLowerCase() === "leave") {
         const absenceRecord: TablesInsert<"absences"> = {
           employee_id: employee.id,
@@ -318,11 +314,9 @@ export default function Attendance() {
         absenceRecords.push(absenceRecord);
       }
 
-      // Collect unique dates for calendar events
       uniqueDates.add(date);
     }
 
-    // Insert attendance records and get the inserted records with IDs
     let insertedAttendanceRecords: Tables<"attendance">[] = [];
     if (attendanceRecords.length > 0) {
       const { data: insertedData, error: attendanceError } = await supabase
@@ -338,7 +332,6 @@ export default function Attendance() {
       insertedAttendanceRecords = insertedData || [];
     }
 
-    // Insert absence records
     if (absenceRecords.length > 0) {
       const { error: absenceError } = await supabase
         .from("absences")
@@ -350,9 +343,6 @@ export default function Attendance() {
       }
     }
 
-    // Fetch updated absences for calendar event creation
-    const startDate = "2025-04-01";
-    const endDate = "2025-04-30";
     const { data: updatedAbsences, error: absencesFetchError } = await supabase
       .from("absences")
       .select("*")
@@ -365,7 +355,6 @@ export default function Attendance() {
     }
     setAbsencesData(updatedAbsences as Tables<"absences">[] || []);
 
-    // Create calendar events for each unique date
     for (const date of uniqueDates) {
       const dateRecords = insertedAttendanceRecords.filter(rec => rec.date === date);
       const dateAbsences = (updatedAbsences as Tables<"absences">[]).filter(abs => abs.date === date);
@@ -378,10 +367,9 @@ export default function Attendance() {
         totalPresent: dateRecords.filter(rec => computeStatus(rec.check_in, "present") === "present").length,
         totalAbsent: dateRecords.filter(rec => computeStatus(rec.check_in, "present") === "absent").length,
         totalLate: dateRecords.filter(rec => computeStatus(rec.check_in, "present") === "late").length,
-        onLeave: dateAbsences.length, // Count absences as leave
+        onLeave: dateAbsences.length,
       };
 
-      // Calculate earliest check_in and latest check_out for the day, and track the corresponding attendance IDs
       const checkInRecords = dateRecords
         .filter(rec => rec.check_in)
         .map(rec => ({
@@ -446,7 +434,6 @@ export default function Attendance() {
       calendarEvents.push(calendarEvent);
     }
 
-    // Insert calendar events
     if (calendarEvents.length > 0) {
       const { error: calendarError } = await supabase
         .from("calendar_events")
@@ -460,7 +447,6 @@ export default function Attendance() {
 
     importStatus.successfulRecords = attendanceRecords.length;
 
-    // Refresh attendance data
     const { data: newAttendanceData, error: fetchError } = await supabase
       .from("attendance")
       .select("*")
@@ -470,7 +456,6 @@ export default function Attendance() {
     if (fetchError) throw fetchError;
     setAttendanceData(newAttendanceData || []);
 
-    // Update daily summaries
     const summaries: DailySummary[] = [];
     const dates = [...new Set(newAttendanceData.map(att => att.date))].sort().reverse();
     dates.forEach(date => {
@@ -491,7 +476,6 @@ export default function Attendance() {
     return importStatus;
   };
 
-  // Handle import from file
   const handleImportFromFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     try {
       const file = event.target.files?.[0];
@@ -504,10 +488,7 @@ export default function Attendance() {
         return;
       }
 
-      // Dynamically import XLSX
       const XLSX = await import("xlsx");
-
-      // Read the file
       const reader = new FileReader();
       reader.onload = async (e) => {
         const data = e.target?.result;
@@ -525,7 +506,6 @@ export default function Attendance() {
         const worksheet = workbook.Sheets[sheetName];
         const jsonData: unknown[] = XLSX.utils.sheet_to_json(worksheet);
 
-        // Validate and filter the data
         const validData: AttendanceMachineRecord[] = [];
         const validationErrors: string[] = [];
 
@@ -580,7 +560,6 @@ export default function Attendance() {
           });
         }
 
-        // Update import status
         setImportStatus(importStatus);
         setIsImportDialogOpen(false);
       };
@@ -605,7 +584,6 @@ export default function Attendance() {
     }
   };
 
-  // Handle import using API key
   const handleImportWithApiKey = async () => {
     if (!apiKey) {
       toast({
@@ -618,7 +596,6 @@ export default function Attendance() {
 
     setIsSyncing(true);
     try {
-      // Fetch data using the provided API key
       const response = await fetch("/api/attendance/sync", {
         method: "GET",
         headers: {
@@ -671,13 +648,9 @@ export default function Attendance() {
     }
   };
 
-  // Handle sync with Google Calendar
   const handleSyncWithGoogleCalendar = async () => {
     setIsSyncing(true);
     try {
-      // Fetch calendar events that are not yet synced
-      const startDate = "2025-04-01";
-      const endDate = "2025-04-30";
       const { data: calendarEvents, error: fetchError } = await supabase
         .from("calendar_events")
         .select("*")
@@ -697,13 +670,12 @@ export default function Attendance() {
         return;
       }
 
-      // Prepare events for Google Calendar
       const eventsToSync = calendarEvents.map(event => ({
         summary: event.title,
         description: event.description,
         start: {
           dateTime: event.start_time,
-          timeZone: "Asia/Jakarta", // Adjust based on your timezone
+          timeZone: "Asia/Jakarta",
         },
         end: {
           dateTime: event.end_time,
@@ -717,12 +689,10 @@ export default function Attendance() {
         },
       }));
 
-      // Send events to Google Calendar (mock API call - replace with actual Google Calendar API integration)
       const response = await fetch("/api/google-calendar/sync", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          // Add Google OAuth token or other authentication as needed
         },
         body: JSON.stringify({ events: eventsToSync }),
       });
@@ -731,7 +701,6 @@ export default function Attendance() {
         throw new Error(`Gagal menyinkronkan dengan Google Calendar: ${response.statusText}`);
       }
 
-      // Mark events as synced in the database
       const eventIds = calendarEvents.map(event => event.id);
       const { error: updateError } = await supabase
         .from("calendar_events")
@@ -758,7 +727,6 @@ export default function Attendance() {
     }
   };
 
-  // Simplify JSX to avoid deep type instantiation
   const attendanceRateContent = (
     <>
       <CardHeader className="pb-2">
@@ -766,7 +734,7 @@ export default function Attendance() {
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">{attendanceRate}%</div>
-        <p className="text-xs text-muted-foreground">Bulan April 2025</p>
+        <p className="text-xs text-muted-foreground">Bulan {monthLabel}</p>
       </CardContent>
     </>
   );
@@ -778,7 +746,7 @@ export default function Attendance() {
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">{totalLate}</div>
-        <p className="text-xs text-muted-foreground">Bulan April 2025</p>
+        <p className="text-xs text-muted-foreground">Bulan {monthLabel}</p>
       </CardContent>
     </>
   );
@@ -790,7 +758,7 @@ export default function Attendance() {
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">{totalAbsent}</div>
-        <p className="text-xs text-muted-foreground">Bulan April 2025</p>
+        <p className="text-xs text-muted-foreground">Bulan {monthLabel}</p>
       </CardContent>
     </>
   );
@@ -802,7 +770,7 @@ export default function Attendance() {
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">{totalLeave}</div>
-        <p className="text-xs text-muted-foreground">Bulan April 2025</p>
+        <p className="text-xs text-muted-foreground">Bulan {monthLabel}</p>
       </CardContent>
     </>
   );
@@ -823,7 +791,6 @@ export default function Attendance() {
         <Card>{totalLeaveContent}</Card>
       </div>
 
-      {/* Import Status Card */}
       {importStatus && (
         <Card className={importStatus.errors.length > 0 || importStatus.mismatches.length > 0 ? "border-red-500" : "border-green-500"}>
           <CardHeader className="pb-2">
@@ -875,7 +842,6 @@ export default function Attendance() {
         </div>
         
         <div className="flex gap-2">
-          {/* Button 1: Import from File */}
           <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
             <DialogTrigger asChild>
               <Button className="flex items-center gap-2">
@@ -906,7 +872,6 @@ export default function Attendance() {
             </DialogContent>
           </Dialog>
 
-          {/* Button 2: Import from API Key */}
           <Dialog open={isApiKeyDialogOpen} onOpenChange={setIsApiKeyDialogOpen}>
             <DialogTrigger asChild>
               <Button className="flex items-center gap-2">
@@ -941,7 +906,6 @@ export default function Attendance() {
             </DialogContent>
           </Dialog>
           
-          {/* Button 3: Sync with Google Calendar */}
           <Button
             variant="outline"
             className="flex items-center gap-2"
