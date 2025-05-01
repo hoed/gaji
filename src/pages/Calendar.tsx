@@ -16,41 +16,6 @@ import { CalendarCheck, CalendarClock, Calendar as CalendarIcon } from "lucide-r
 import CalendarBadge, { BadgeType } from "@/components/calendar/CalendarBadge";
 import { Button } from "@/components/ui/button";
 
-// Define interface for payroll events (based on payroll_events table)
-interface PayrollEvent {
-  id: string;
-  title: string;
-  event_type: string;
-  start_time: string;
-  end_time: string;
-  description: string | null;
-  created_at: string;
-  updated_at: string;
-  payroll_id?: string | null;
-  attendance_id?: string | null;
-  calendar_event_id?: string | null;
-  
-  payroll?: {
-    id: string;
-    basic_salary: number;
-    net_salary: number;
-  } | null;
-  
-  attendance?: {
-    id: string;
-    date: string;
-    check_in: string | null;
-    check_out: string | null;
-  } | null;
-  
-  calendar_events?: {
-    id: string;
-    title: string;
-    start_time: string;
-    end_time: string;
-  } | null;
-}
-
 // Define interface for calendar events (based on calendar_events table)
 interface CalendarEvent {
   id: string;
@@ -67,12 +32,21 @@ interface CalendarEvent {
   updated_at: string;
   is_synced: boolean;
   payroll_event_id?: string | null;
-  
-  payroll_events?: {
-    id: string;
-    title: string;
-    event_type: string;
-  } | null;
+}
+
+// Define interface for payroll events (based on payroll_events table)
+interface PayrollEvent {
+  id: string;
+  title: string;
+  event_type: string;
+  start_time: string;
+  end_time: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+  payroll_id?: string | null;
+  attendance_id?: string | null;
+  calendar_event_id?: string | null;
 }
 
 // Group events by date for badges
@@ -85,28 +59,24 @@ type EventsByDate = {
 
 export default function CalendarPage() {
   const [payrollEvents, setPayrollEvents] = useState<PayrollEvent[]>([]);
-  const [attendanceEvents, setAttendanceEvents] = useState<CalendarEvent[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [isLoading, setIsLoading] = useState(true);
   const [eventsByDate, setEventsByDate] = useState<EventsByDate>({});
   const { toast } = useToast();
 
-  // Fetch payroll events and attendance events from Supabase
+  // Fetch payroll and calendar events from Supabase
   useEffect(() => {
     const fetchEvents = async () => {
       setIsLoading(true);
       try {
         const startDate = "2025-04-01";
         const endDate = "2025-04-30";
-        
+
+        // Fetch payroll events for badges
         const { data: payrollData, error: payrollError } = await supabase
           .from("payroll_events")
-          .select(`
-            *,
-            payroll(*),
-            calendar_events(*),
-            attendance(*)
-          `)
+          .select("*")
           .gte("start_time", startDate)
           .lte("end_time", endDate);
 
@@ -114,51 +84,45 @@ export default function CalendarPage() {
           console.error("Error fetching payroll events:", payrollError);
           throw payrollError;
         }
-        
+
         const typedPayrollData = payrollData as PayrollEvent[] || [];
         setPayrollEvents(typedPayrollData);
 
-        const { data: attendanceData, error: attendanceError } = await supabase
+        // Fetch calendar events for April 2025, matching Dashboard's upcoming events
+        const { data: calendarData, error: calendarError } = await supabase
           .from("calendar_events")
-          .select(`
-            *,
-            payroll_events(*)
-          `)
-          .gte("start_time", startDate)
-          .lte("end_time", endDate);
+          .select("id, title, start_time")
+          .gt("start_time", "2025-04-25") // Match Dashboard's filter
+          .order("start_time", { ascending: true });
 
-        if (attendanceError) {
-          console.error("Error fetching attendance events:", attendanceError);
-          throw attendanceError;
+        if (calendarError) {
+          console.error("Error fetching calendar events:", calendarError);
+          throw calendarError;
         }
-        
-        const typedAttendanceData = (attendanceData || []).map(event => ({
-          ...event,
-          event_type: 'attendance'
-        })) as CalendarEvent[];
 
-        setAttendanceEvents(typedAttendanceData);
+        const typedCalendarData = calendarData as CalendarEvent[] || [];
+        setCalendarEvents(typedCalendarData);
 
+        // Group events by date for badges
         const groupedEvents: EventsByDate = {};
-        
+
         typedPayrollData.forEach(event => {
-          const dateKey = new Date(event.start_time).toISOString().split('T')[0];
+          const dateKey = new Date(event.start_time).toISOString().split("T")[0];
           if (!groupedEvents[dateKey]) {
             groupedEvents[dateKey] = { payroll: [], attendance: [] };
           }
           groupedEvents[dateKey].payroll.push(event);
         });
-        
-        typedAttendanceData.forEach(event => {
-          const dateKey = new Date(event.start_time).toISOString().split('T')[0];
+
+        typedCalendarData.forEach(event => {
+          const dateKey = new Date(event.start_time).toISOString().split("T")[0];
           if (!groupedEvents[dateKey]) {
             groupedEvents[dateKey] = { payroll: [], attendance: [] };
           }
           groupedEvents[dateKey].attendance.push(event);
         });
-        
-        setEventsByDate(groupedEvents);
 
+        setEventsByDate(groupedEvents);
       } catch (error) {
         console.error("Error fetching events:", error);
         toast({
@@ -175,11 +139,11 @@ export default function CalendarPage() {
 
   // Function to render event badges for a specific day
   const renderDayContent = (day: Date) => {
-    const dateKey = day.toISOString().split('T')[0];
+    const dateKey = day.toISOString().split("T")[0];
     const events = eventsByDate[dateKey];
-    
+
     if (!events) return <div className="text-foreground">{day.getDate()}</div>;
-    
+
     return (
       <div className="flex flex-col items-center gap-0.5">
         <div className="text-foreground">{day.getDate()}</div>
@@ -203,18 +167,11 @@ export default function CalendarPage() {
       variant: "default",
     });
   };
-  
-  // Combine and filter events for the selected date
-  const filteredEvents = selectedDate
-    ? [...payrollEvents, ...attendanceEvents].filter(event =>
-        isSameDay(new Date(event.start_time), selectedDate)
-      )
-    : [...payrollEvents, ...attendanceEvents];
 
-  // Determine if an event is upcoming
-  const isUpcoming = (event: PayrollEvent | CalendarEvent) => {
-    return new Date(event.start_time) > new Date();
-  };
+  // Filter events for the selected date
+  const filteredEvents = selectedDate
+    ? calendarEvents.filter(event => isSameDay(new Date(event.start_time), selectedDate))
+    : calendarEvents;
 
   return (
     <div className="space-y-6">
@@ -225,8 +182,8 @@ export default function CalendarPage() {
             Lihat event penggajian dan kehadiran karyawan
           </p>
         </div>
-        <Button 
-          onClick={syncWithGoogleCalendar} 
+        <Button
+          onClick={syncWithGoogleCalendar}
           className="flex items-center gap-2 w-full sm:w-auto"
         >
           <CalendarClock className="h-4 w-4" />
@@ -242,9 +199,7 @@ export default function CalendarPage() {
               <CalendarIcon className="h-5 w-5" />
               Calendar April 2025
             </CardTitle>
-            <CardDescription>
-              Lihat event berdasarkan tanggal
-            </CardDescription>
+            <CardDescription>Lihat event berdasarkan tanggal</CardDescription>
           </CardHeader>
           <CardContent>
             <CalendarUI
@@ -282,18 +237,32 @@ export default function CalendarPage() {
             <CardTitle>
               {selectedDate
                 ? `Event pada ${format(selectedDate, "dd MMMM yyyy")}`
-                : "Semua Event"}
+                : "Agenda Mendatang"}
             </CardTitle>
-            <CardDescription>
-              Detail event penggajian dan kehadiran karyawan
-            </CardDescription>
+            <CardDescription>Jadwal pembayaran dan kewajiban perusahaan</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
               <div className="flex justify-center items-center py-8">
-                <svg className="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                <svg
+                  className="animate-spin h-8 w-8 text-primary"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
                 </svg>
               </div>
             ) : (
@@ -304,7 +273,7 @@ export default function CalendarPage() {
                   filteredEvents.map(event => (
                     <li key={event.id} className="flex justify-between items-center">
                       <div>
-                        <p className="font-medium text-foreground">
+                        <p className="font-medium">
                           {new Date(event.start_time).toLocaleDateString("id-ID", {
                             day: "numeric",
                             month: "long",
@@ -313,9 +282,7 @@ export default function CalendarPage() {
                           {event.title}
                         </p>
                       </div>
-                      {isUpcoming(event) && (
-                        <span className="text-yellow-600 font-medium">Mendatang</span>
-                      )}
+                      <span className="text-yellow-600 font-medium">Mendatang</span>
                     </li>
                   ))
                 )}
