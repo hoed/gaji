@@ -327,7 +327,7 @@ export default function Settings() {
           {/* Tax calculation card */}
           <Card>
             <CardHeader>
-              <CardTitle>Kalkulator Pajak & BPJS</CardTitle>
+              <CardTitle>Kalkulator Pajak</CardTitle>
               <CardDescription>
                 Hitung estimasi pajak dan iuran BPJS
               </CardDescription>
