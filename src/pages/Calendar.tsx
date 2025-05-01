@@ -199,7 +199,7 @@ export default function CalendarPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CalendarIcon className="h-5 w-5" />
-              Calendar April 2025
+              Calendar Events
             </CardTitle>
             <CardDescription>Lihat event berdasarkan tanggal</CardDescription>
           </CardHeader>
