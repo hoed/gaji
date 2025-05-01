@@ -25,13 +25,19 @@ interface BPJSSetting {
   type: string;
 }
 
-// Define the type for calculation inputs
+// Define the type for tax calculation inputs
 interface CalculationInput {
   salary: number;
   taxStatus: string;
 }
 
-// Sample data to use since the real tables don't exist yet
+// Define the type for BPJS calculation inputs
+interface BPJSCalcInput {
+  salary: number;
+  jkkRiskLevel: string;
+}
+
+// Sample data for tax settings
 const sampleTaxSettings: TaxSetting[] = [
   {
     id: '1',
@@ -63,6 +69,7 @@ const sampleTaxSettings: TaxSetting[] = [
   }
 ];
 
+// Sample data for BPJS settings
 const sampleBPJSSettings: BPJSSetting[] = [
   {
     id: '1',
@@ -114,6 +121,11 @@ export default function Settings() {
     taxStatus: "TK/0",
   });
   const [calcResults, setCalcResults] = useState<any>(null);
+  const [bpjsCalcInput, setBPJSCalcInput] = useState<BPJSCalcInput>({
+    salary: 0,
+    jkkRiskLevel: "low",
+  });
+  const [bpjsCalcResults, setBPJSCalcResults] = useState<any>(null);
 
   useEffect(() => {
     // Use sample data since tables don't exist yet
@@ -125,7 +137,7 @@ export default function Settings() {
     toast.warning("Menggunakan data sampel untuk pengaturan pajak dan BPJS");
   }, []);
 
-  const handleCalculate = () => {
+  const handleTaxCalculate = () => {
     try {
       // Find the selected tax status
       const selectedTaxSetting = taxSettings.find(tax => tax.name === calcInput.taxStatus);
@@ -181,11 +193,71 @@ export default function Settings() {
         netSalary
       });
       
-      toast.success("Perhitungan berhasil!");
+      toast.success("Perhitungan pajak berhasil!");
       
     } catch (error: any) {
       console.error("Calculation error:", error);
-      toast.error(`Gagal melakukan perhitungan: ${error.message}`);
+      toast.error(`Gagal melakukan perhitungan pajak: ${error.message}`);
+    }
+  };
+
+  const handleBPJSCalculate = () => {
+    try {
+      // Salary caps
+      const kesehatanCap = 12000000;
+      const jpCap = 9077600;
+
+      // Get BPJS settings
+      const bpjsKes = bpjsSettings.find(bpjs => bpjs.type === "kesehatan");
+      const bpjsJHT = bpjsSettings.find(bpjs => bpjs.type === "jht");
+      const bpjsJP = bpjsSettings.find(bpjs => bpjs.type === "jp");
+      const bpjsJKM = bpjsSettings.find(bpjs => bpjs.type === "jkm");
+
+      // Determine JKK rate based on risk level
+      const jkkRates: Record<string, number> = {
+        "very-low": 0.24,
+        "low": 0.54,
+        "medium": 0.89,
+        "high": 1.27,
+        "very-high": 1.74
+      };
+      const jkkRate = jkkRates[bpjsCalcInput.jkkRiskLevel] || 0.54; // Default to low if invalid
+
+      // Calculate BPJS Kesehatan
+      const kesehatanWage = Math.min(bpjsCalcInput.salary, kesehatanCap);
+      const bpjsKesEmployee = kesehatanWage * (bpjsKes?.employee_percentage || 0) / 100;
+      const bpjsKesCompany = kesehatanWage * (bpjsKes?.company_percentage || 0) / 100;
+
+      // Calculate BPJS Ketenagakerjaan
+      const bpjsJHTEmployee = bpjsCalcInput.salary * (bpjsJHT?.employee_percentage || 0) / 100;
+      const bpjsJHTCompany = bpjsCalcInput.salary * (bpjsJHT?.company_percentage || 0) / 100;
+      const jpWage = Math.min(bpjsCalcInput.salary, jpCap);
+      const bpjsJPEmployee = jpWage * (bpjsJP?.employee_percentage || 0) / 100;
+      const bpjsJPCompany = jpWage * (bpjsJP?.company_percentage || 0) / 100;
+      const bpjsJKKCompany = bpjsCalcInput.salary * jkkRate / 100;
+      const bpjsJKMCompany = bpjsCalcInput.salary * (bpjsJKM?.company_percentage || 0) / 100;
+
+      // Calculate totals
+      const totalBPJSEmployeeContributions = bpjsKesEmployee + bpjsJHTEmployee + bpjsJPEmployee;
+      const totalBPJSCompanyContributions = bpjsKesCompany + bpjsJHTCompany + bpjsJPCompany + bpjsJKKCompany + bpjsJKMCompany;
+
+      setBPJSCalcResults({
+        bpjsKesEmployee,
+        bpjsKesCompany,
+        bpjsJHTEmployee,
+        bpjsJHTCompany,
+        bpjsJPEmployee,
+        bpjsJPCompany,
+        bpjsJKKCompany,
+        bpjsJKMCompany,
+        totalBPJSEmployeeContributions,
+        totalBPJSCompanyContributions
+      });
+
+      toast.success("Perhitungan BPJS berhasil!");
+    } catch (error: any) {
+      console.error("BPJS Calculation error:", error);
+      toast.error(`Gagal melakukan perhitungan BPJS: ${error.message}`);
     }
   };
 
@@ -289,7 +361,7 @@ export default function Settings() {
                 </div>
               </div>
 
-              <Button onClick={handleCalculate} className="w-full">Hitung</Button>
+              <Button onClick={handleTaxCalculate} className="w-full">Hitung</Button>
 
               {calcResults && (
                 <div className="border rounded-lg p-4 mt-4 space-y-4">
@@ -426,7 +498,148 @@ export default function Settings() {
               )}
             </CardContent>
           </Card>
-          
+
+          {/* BPJS Calculator Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Kalkulator BPJS</CardTitle>
+              <CardDescription>
+                Hitung iuran BPJS Kesehatan dan Ketenagakerjaan
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="bpjsSalary">Gaji Bruto</Label>
+                  <Input
+                    id="bpjsSalary"
+                    type="number"
+                    placeholder="0"
+                    value={bpjsCalcInput.salary || ''}
+                    onChange={(e) => setBPJSCalcInput({...bpjsCalcInput, salary: Number(e.target.value)})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="jkkRiskLevel">Tingkat Risiko JKK</Label>
+                  <select
+                    id="jkkRiskLevel"
+                    className="w-full p-2 border rounded"
+                    value={bpjsCalcInput.jkkRiskLevel}
+                    onChange={(e) => setBPJSCalcInput({...bpjsCalcInput, jkkRiskLevel: e.target.value})}
+                  >
+                    <option value="very-low">Sangat Rendah (0.24%)</option>
+                    <option value="low">Rendah (0.54%)</option>
+                    <option value="medium">Sedang (0.89%)</option>
+                    <option value="high">Tinggi (1.27%)</option>
+                    <option value="very-high">Sangat Tinggi (1.74%)</option>
+                  </select>
+                </div>
+              </div>
+
+              <Button onClick={handleBPJSCalculate} className="w-full">Hitung</Button>
+
+              {bpjsCalcResults && (
+                <div className="border rounded-lg p-4 mt-4 space-y-4">
+                  <h3 className="font-semibold text-lg">Hasil Perhitungan BPJS</h3>
+                  
+                  <div className="space-y-2">
+                    <h4 className="font-medium">BPJS Kesehatan</h4>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <p>Kontribusi Karyawan (1%):</p>
+                      <p className="text-right">
+                        {bpjsCalcResults.bpjsKesEmployee.toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
+                      <p>Kontribusi Perusahaan (4%):</p>
+                      <p className="text-right">
+                        {bpjsCalcResults.bpjsKesCompany.toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-medium">BPJS Ketenagakerjaan</h4>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <p>JHT Karyawan (2%):</p>
+                      <p className="text-right">
+                        {bpjsCalcResults.bpjsJHTEmployee.toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
+                      <p>JHT Perusahaan (3.7%):</p>
+                      <p className="text-right">
+                        {bpjsCalcResults.bpjsJHTCompany.toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
+                      <p>JP Karyawan (1%):</p>
+                      <p className="text-right">
+                        {bpjsCalcResults.bpjsJPEmployee.toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
+                      <p>JP Perusahaan (2%):</p>
+                      <p className="text-right">
+                        {bpjsCalcResults.bpjsJPCompany.toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
+                      <p>JKK Perusahaan:</p>
+                      <p className="text-right">
+                        {bpjsCalcResults.bpjsJKKCompany.toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
+                      <p>JKM Perusahaan (0.2%):</p>
+                      <p className="text-right">
+                        {bpjsCalcResults.bpjsJKMCompany.toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t">
+                    <div className="grid grid-cols-2 gap-2 text-base font-semibold">
+                      <p>Total Kontribusi Karyawan:</p>
+                      <p className="text-right">
+                        {bpjsCalcResults.totalBPJSEmployeeContributions.toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
+                      <p>Total Kontribusi Perusahaan:</p>
+                      <p className="text-right">
+                        {bpjsCalcResults.totalBPJSCompanyContributions.toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
+                      <p>Total Iuran BPJS:</p>
+                      <p className="text-right">
+                        {(bpjsCalcResults.totalBPJSEmployeeContributions + bpjsCalcResults.totalBPJSCompanyContributions).toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Tax Settings Card */}
             <Card>
