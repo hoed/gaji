@@ -208,7 +208,7 @@ export default function Dashboard() {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground">Selamat datang di Gajianku</p>
+        <p className="text-muted-foreground">Selamat datang di Sistem Penggajian Terpadu</p>
       </div>
 
       {/* Top Widgets */}
