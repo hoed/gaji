@@ -1,3 +1,4 @@
+
 /* src/pages/Calendar.tsx */
 import { useState, useEffect } from "react";
 import {
@@ -7,9 +8,14 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Calendar } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Tables } from "@/integrations/supabase/types";
+import { format, isSameDay } from "date-fns";
+import { CalendarCheck, CalendarClock, Calendar as CalendarIcon } from "lucide-react";
+import CalendarBadge from "@/components/calendar/CalendarBadge";
+import { Button } from "@/components/ui/button";
 
 // Define interface for payroll events (based on payroll_events table)
 interface PayrollEvent {
@@ -40,10 +46,20 @@ interface CalendarEvent {
   is_synced: boolean;
 }
 
+// Group events by date for badges
+type EventsByDate = {
+  [date: string]: {
+    payroll: PayrollEvent[];
+    attendance: CalendarEvent[];
+  };
+};
+
 export default function Calendar() {
   const [payrollEvents, setPayrollEvents] = useState<PayrollEvent[]>([]);
   const [attendanceEvents, setAttendanceEvents] = useState<CalendarEvent[]>([]);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [isLoading, setIsLoading] = useState(true);
+  const [eventsByDate, setEventsByDate] = useState<EventsByDate>({});
   const { toast } = useToast();
 
   // Fetch payroll events and attendance events from Supabase
@@ -77,6 +93,29 @@ export default function Calendar() {
           event_type: 'attendance'
         })) as CalendarEvent[]);
 
+        // Group events by date
+        const groupedEvents: EventsByDate = {};
+        
+        // Group payroll events
+        payrollData?.forEach(event => {
+          const dateKey = new Date(event.start_time).toISOString().split('T')[0];
+          if (!groupedEvents[dateKey]) {
+            groupedEvents[dateKey] = { payroll: [], attendance: [] };
+          }
+          groupedEvents[dateKey].payroll.push(event);
+        });
+        
+        // Group attendance events
+        attendanceData?.forEach(event => {
+          const dateKey = new Date(event.start_time).toISOString().split('T')[0];
+          if (!groupedEvents[dateKey]) {
+            groupedEvents[dateKey] = { payroll: [], attendance: [] };
+          }
+          groupedEvents[dateKey].attendance.push(event);
+        });
+        
+        setEventsByDate(groupedEvents);
+
       } catch (error) {
         console.error("Error fetching events:", error);
         toast({
@@ -91,121 +130,234 @@ export default function Calendar() {
     fetchEvents();
   }, [toast]);
 
+  // Function to render event badges for a specific day
+  const renderDayContent = (day: Date) => {
+    const dateKey = day.toISOString().split('T')[0];
+    const events = eventsByDate[dateKey];
+    
+    if (!events) return null;
+    
+    return (
+      <div className="flex flex-wrap gap-0.5 mt-1 justify-center">
+        {events.payroll.length > 0 && (
+          <CalendarBadge type="payroll" count={events.payroll.length} />
+        )}
+        {events.attendance.length > 0 && (
+          <CalendarBadge type="attendance" count={events.attendance.length} />
+        )}
+      </div>
+    );
+  };
+
+  // Function to sync with Google Calendar
+  const syncWithGoogleCalendar = () => {
+    // This is a placeholder. In a real implementation, you would integrate with Google Calendar API
+    toast({
+      title: "Google Calendar",
+      description: "Sinkronisasi dengan Google Calendar akan segera tersedia.",
+      variant: "default",
+    });
+  };
+  
+  const filteredPayrollEvents = selectedDate 
+    ? payrollEvents.filter(event => 
+        isSameDay(new Date(event.start_time), selectedDate)) 
+    : [];
+  
+  const filteredAttendanceEvents = selectedDate 
+    ? attendanceEvents.filter(event => 
+        isSameDay(new Date(event.start_time), selectedDate)) 
+    : [];
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Kalender</h1>
-        <p className="text-muted-foreground">
-          Lihat event penggajian dan kehadiran karyawan
-        </p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold">Kalender</h1>
+          <p className="text-muted-foreground">
+            Lihat event penggajian dan kehadiran karyawan
+          </p>
+        </div>
+        <Button 
+          onClick={syncWithGoogleCalendar} 
+          className="flex items-center gap-2"
+        >
+          <CalendarClock className="h-4 w-4" />
+          Sync to Google Calendar
+        </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Event Kalender - April 2025</CardTitle>
-          <CardDescription>
-            Ringkasan event penggajian dan kehadiran karyawan untuk bulan April 2025.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center items-center py-8">
-              <svg className="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {/* Payroll Events Section */}
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Payroll Events</h3>
-                {payrollEvents.length === 0 ? (
-                  <p className="text-muted-foreground">Tidak ada event penggajian untuk bulan ini.</p>
-                ) : (
-                  <ul className="space-y-4">
-                    {payrollEvents.map(event => (
-                      <li key={event.id} className="border-l-4 border-blue-500 pl-4">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h4 className="font-medium">{event.title}</h4>
-                            <p className="text-sm text-muted-foreground">
-                              {new Date(event.start_time).toLocaleDateString("id-ID", {
-                                day: "numeric",
-                                month: "long",
-                                year: "numeric",
-                              })}
-                              {event.start_time !== event.end_time && (
-                                <>
-                                  {" - "}
-                                  {new Date(event.end_time).toLocaleDateString("id-ID", {
-                                    day: "numeric",
-                                    month: "long",
-                                    year: "numeric",
-                                  })}
-                                </>
-                              )}
-                            </p>
-                            {event.description && (
-                              <p className="text-sm mt-1">{event.description}</p>
-                            )}
-                          </div>
-                          <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
-                            {event.event_type}
-                          </span>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Calendar Card */}
+        <Card className="md:col-span-1">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarIcon className="h-5 w-5" />
+              Calendar April 2025
+            </CardTitle>
+            <CardDescription>
+              Lihat event berdasarkan tanggal
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={setSelectedDate}
+              className="border rounded-md p-3"
+              components={{
+                DayContent: ({ day, ...props }) => (
+                  <div className="relative w-full h-full flex flex-col items-center">
+                    <div {...props} />
+                    {renderDayContent(day)}
+                  </div>
+                ),
+              }}
+            />
+            <div className="mt-4 flex flex-wrap gap-2">
+              <div className="flex items-center gap-1">
+                <CalendarBadge type="payroll" />
+                <span className="text-xs text-muted-foreground">Gaji</span>
               </div>
+              <div className="flex items-center gap-1">
+                <CalendarBadge type="attendance" />
+                <span className="text-xs text-muted-foreground">Kehadiran</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-              {/* Employee Attendance Section */}
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Employee Attendance</h3>
-                {attendanceEvents.length === 0 ? (
-                  <p className="text-muted-foreground">Tidak ada data kehadiran untuk bulan ini.</p>
-                ) : (
-                  <ul className="space-y-4">
-                    {attendanceEvents.map(event => (
-                      <li key={event.id} className="border-l-4 border-green-500 pl-4">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h4 className="font-medium">{event.title}</h4>
-                            <p className="text-sm text-muted-foreground">
-                              {new Date(event.start_time).toLocaleDateString("id-ID", {
-                                day: "numeric",
-                                month: "long",
-                                year: "numeric",
-                              })}
-                            </p>
-                            {event.check_in && (
-                              <p className="text-sm">
-                                Check-in Paling Awal: {new Date(event.check_in).toLocaleTimeString("id-ID")}
-                              </p>
-                            )}
-                            {event.check_out && (
-                              <p className="text-sm">
-                                Check-out Paling Akhir: {new Date(event.check_out).toLocaleTimeString("id-ID")}
-                              </p>
-                            )}
-                            {event.description && (
-                              <p className="text-sm mt-1 whitespace-pre-line">{event.description}</p>
-                            )}
-                          </div>
-                          <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-                            {event.is_synced ? "Tersinkronisasi" : "Belum Tersinkronisasi"}
-                          </span>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+        {/* Events List Card */}
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <CardTitle>
+              {selectedDate ? (
+                <>Event pada {format(selectedDate, "dd MMMM yyyy")}</>
+              ) : (
+                <>Semua Event</>
+              )}
+            </CardTitle>
+            <CardDescription>
+              Detail event penggajian dan kehadiran karyawan
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="flex justify-center items-center py-8">
+                <svg className="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
               </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            ) : (
+              <div className="space-y-6">
+                {/* Payroll Events Section */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Badge variant="success" className="h-6">Payroll Events</Badge>
+                    <CalendarCheck className="h-4 w-4 text-green-600" />
+                  </div>
+                  {filteredPayrollEvents.length === 0 ? (
+                    <p className="text-muted-foreground">Tidak ada event penggajian untuk tanggal ini.</p>
+                  ) : (
+                    <ul className="space-y-4">
+                      {filteredPayrollEvents.map(event => (
+                        <li key={event.id} className="border-l-4 border-green-500 pl-4 bg-green-50/50 p-3 rounded-md">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h4 className="font-medium">{event.title}</h4>
+                              <p className="text-sm text-muted-foreground">
+                                {new Date(event.start_time).toLocaleDateString("id-ID", {
+                                  day: "numeric",
+                                  month: "long",
+                                  year: "numeric",
+                                })}
+                                {event.start_time !== event.end_time && (
+                                  <>
+                                    {" - "}
+                                    {new Date(event.end_time).toLocaleDateString("id-ID", {
+                                      day: "numeric",
+                                      month: "long",
+                                      year: "numeric",
+                                    })}
+                                  </>
+                                )}
+                              </p>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                {new Date(event.start_time).toLocaleTimeString("id-ID", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                                {" - "}
+                                {new Date(event.end_time).toLocaleTimeString("id-ID", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </p>
+                              {event.description && (
+                                <p className="text-sm mt-1">{event.description}</p>
+                              )}
+                            </div>
+                            <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200">
+                              {event.event_type}
+                            </Badge>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                {/* Employee Attendance Section */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Badge variant="info" className="h-6">Attendance Events</Badge>
+                    <CalendarCheck className="h-4 w-4 text-blue-600" />
+                  </div>
+                  {filteredAttendanceEvents.length === 0 ? (
+                    <p className="text-muted-foreground">Tidak ada data kehadiran untuk tanggal ini.</p>
+                  ) : (
+                    <ul className="space-y-4">
+                      {filteredAttendanceEvents.map(event => (
+                        <li key={event.id} className="border-l-4 border-blue-500 pl-4 bg-blue-50/50 p-3 rounded-md">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h4 className="font-medium">{event.title}</h4>
+                              <p className="text-sm text-muted-foreground">
+                                {new Date(event.start_time).toLocaleDateString("id-ID", {
+                                  day: "numeric",
+                                  month: "long",
+                                  year: "numeric",
+                                })}
+                              </p>
+                              {event.check_in && (
+                                <p className="text-sm">
+                                  Check-in Paling Awal: {new Date(event.check_in).toLocaleTimeString("id-ID")}
+                                </p>
+                              )}
+                              {event.check_out && (
+                                <p className="text-sm">
+                                  Check-out Paling Akhir: {new Date(event.check_out).toLocaleTimeString("id-ID")}
+                                </p>
+                              )}
+                              {event.description && (
+                                <p className="text-sm mt-1 whitespace-pre-line">{event.description}</p>
+                              )}
+                            </div>
+                            <Badge variant={event.is_synced ? "success" : "gray"} className="h-6">
+                              {event.is_synced ? "Tersinkronisasi" : "Belum Tersinkronisasi"}
+                            </Badge>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
