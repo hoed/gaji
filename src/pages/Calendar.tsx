@@ -1,4 +1,3 @@
-
 /* src/pages/Calendar.tsx */
 import { useState, useEffect } from "react";
 import {
@@ -27,6 +26,9 @@ interface PayrollEvent {
   description: string | null;
   created_at: string;
   updated_at: string;
+  payroll_id?: string | null;           // New field to connect to payroll table
+  calendar_event_id?: string | null;    // New field to connect to calendar_events table
+  attendance_id?: string | null;        // New field to connect to attendance table
 }
 
 // Define interface for calendar events (based on calendar_events table)
@@ -44,6 +46,7 @@ interface CalendarEvent {
   created_at: string;
   updated_at: string;
   is_synced: boolean;
+  payroll_event_id?: string | null;     // New field to reference payroll_events
 }
 
 // Intermediate interface for handling the attendance data from Supabase
@@ -61,6 +64,7 @@ interface AttendanceEventData {
   updated_at: string;
   is_synced: boolean;
   api_key_id?: string | null;
+  payroll_event_id?: string | null;     // New field to reference payroll_events
 }
 
 // Group events by date for badges
@@ -89,7 +93,7 @@ export default function CalendarPage() {
         const endDate = "2025-04-30";
         const { data: payrollData, error: payrollError } = await supabase
           .from("payroll_events")
-          .select("*")
+          .select("*, payroll(*), calendar_events(*), attendance(*)")  // Update to include related data
           .gte("start_time", startDate)
           .lte("end_time", endDate);
 
@@ -100,7 +104,7 @@ export default function CalendarPage() {
         // Fetch attendance events for April 2025
         const { data: attendanceData, error: attendanceError } = await supabase
           .from("calendar_events")
-          .select("*")
+          .select("*, payroll_events(*)")  // Update to include related data
           .gte("start_time", startDate)
           .lte("end_time", endDate);
 
