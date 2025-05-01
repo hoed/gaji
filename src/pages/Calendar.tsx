@@ -104,6 +104,7 @@ export default function CalendarPage() {
         const typedCalendarData = calendarData as CalendarEvent[] || [];
         setCalendarEvents(typedCalendarData);
 
+        setUpcomingEvents(typedCalendarData.filter(event => new Date(event.start_time) > new Date()));
         // Group events by date for badges
         const groupedEvents: EventsByDate = {};
 
