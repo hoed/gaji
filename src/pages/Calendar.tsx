@@ -9,12 +9,12 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar } from "@/components/ui/calendar";
+import { Calendar as CalendarUI } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format, isSameDay } from "date-fns";
 import { CalendarCheck, CalendarClock, Calendar as CalendarIcon } from "lucide-react";
-import CalendarBadge from "@/components/calendar/CalendarBadge";
+import CalendarBadge, { BadgeType } from "@/components/calendar/CalendarBadge";
 import { Button } from "@/components/ui/button";
 
 // Define interface for payroll events (based on payroll_events table)
@@ -46,6 +46,23 @@ interface CalendarEvent {
   is_synced: boolean;
 }
 
+// Intermediate interface for handling the attendance data from Supabase
+interface AttendanceEventData {
+  id: string;
+  title: string;
+  start_time: string;
+  end_time: string;
+  description: string | null;
+  check_in: string | null;
+  check_out: string | null;
+  earliest_check_in_attendance_id: string | null;
+  latest_check_out_attendance_id: string | null;
+  created_at: string;
+  updated_at: string;
+  is_synced: boolean;
+  api_key_id?: string | null;
+}
+
 // Group events by date for badges
 type EventsByDate = {
   [date: string]: {
@@ -54,7 +71,7 @@ type EventsByDate = {
   };
 };
 
-export default function Calendar() {
+export default function CalendarPage() {
   const [payrollEvents, setPayrollEvents] = useState<PayrollEvent[]>([]);
   const [attendanceEvents, setAttendanceEvents] = useState<CalendarEvent[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
@@ -88,10 +105,14 @@ export default function Calendar() {
           .eq("event_type", "attendance");
 
         if (attendanceError) throw attendanceError;
-        setAttendanceEvents((attendanceData || []).map(event => ({
+        
+        // Transform the attendance data to ensure it has event_type
+        const transformedAttendanceData = (attendanceData || []).map((event: AttendanceEventData) => ({
           ...event,
           event_type: 'attendance'
-        })) as CalendarEvent[]);
+        }));
+
+        setAttendanceEvents(transformedAttendanceData as CalendarEvent[]);
 
         // Group events by date
         const groupedEvents: EventsByDate = {};
@@ -106,7 +127,7 @@ export default function Calendar() {
         });
         
         // Group attendance events
-        attendanceData?.forEach(event => {
+        transformedAttendanceData.forEach(event => {
           const dateKey = new Date(event.start_time).toISOString().split('T')[0];
           if (!groupedEvents[dateKey]) {
             groupedEvents[dateKey] = { payroll: [], attendance: [] };
@@ -200,13 +221,13 @@ export default function Calendar() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Calendar
+            <CalendarUI
               mode="single"
               selected={selectedDate}
               onSelect={setSelectedDate}
               className="border rounded-md p-3"
               components={{
-                DayContent: ({ day, ...props }) => (
+                DayContent: ({ day, ...props }: { day: Date; [key: string]: any }) => (
                   <div className="relative w-full h-full flex flex-col items-center">
                     <div {...props} />
                     {renderDayContent(day)}
